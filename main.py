@@ -118,17 +118,6 @@ class EldenRingTool:
         tk.Button(save_frame, text="导出存档", command=self.export_save,
                  width=20).pack(side="left", padx=5)
         
-        # 快速操作区域
-        quick_frame = tk.LabelFrame(self.root, text="快速操作", padx=10, pady=10)
-        quick_frame.pack(fill="x", padx=20, pady=10)
-        
-        tk.Button(quick_frame, text="打开游戏目录", 
-                 command=lambda: self.open_folder(self.game_path)).pack(side="left", padx=5)
-        tk.Button(quick_frame, text="打开存档目录", 
-                 command=lambda: self.open_folder(self.save_path)).pack(side="left", padx=5)
-        tk.Button(quick_frame, text="重新检测路径", 
-                 command=self.auto_detect_paths).pack(side="left", padx=5)
-        
         # 状态栏
         self.status_bar = tk.Label(self.root, text="就绪", bd=1, 
                                   relief=tk.SUNKEN, anchor=tk.W)
