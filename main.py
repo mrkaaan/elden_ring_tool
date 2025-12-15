@@ -219,8 +219,9 @@ class EldenRingTool:
                 return path
         
         # 如果没找到，让用户选择
-        path = filedialog.askdirectory(title="请选择ELDEN RING的Game目录")
-        if path:
+        # path = filedialog.askdirectory(title="请选择Elden Ring的Game目录")
+        
+        if path and os.path.exists(path):
             return path
         return None
     
