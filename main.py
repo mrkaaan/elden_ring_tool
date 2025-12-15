@@ -23,6 +23,7 @@ class EldenRingTool:
         self.steam_path = self.config.get("steam_path", "")
         self.game_path = self.config.get("game_path", "")
         self.save_path = os.path.expanduser("~\\AppData\\Roaming\\EldenRing")
+        self.ensure_save_dir()   # 检查并创建存档目录
         self.mod_config_path = ""  # 会在检测mod时设置
         
         # 根据ui_type选择界面版本
@@ -34,7 +35,7 @@ class EldenRingTool:
         self.auto_detect_paths()
         
     def setup_ui(self):
-        self.root.geometry("400x500")
+        self.root.geometry("400x420")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
@@ -60,6 +61,13 @@ class EldenRingTool:
                                   fg="blue", cursor="hand2")
         self.save_label.grid(row=2, column=1, sticky="w")
         self.save_label.bind("<Button-1>", lambda e: self.open_folder(self.save_path))
+
+        # 重新检测路径按钮 - 放在路径区域最下方
+        button_frame = tk.Frame(path_frame)
+        button_frame.grid(row=3, column=0, columnspan=2, pady=(10, 0))
+
+        tk.Button(button_frame, text="重新检测路径", 
+                command=self.auto_detect_paths, width=15).pack()
         
         # MOD管理区域
         mod_frame = tk.LabelFrame(self.root, text="MOD管理", padx=10, pady=5)
@@ -137,6 +145,19 @@ class EldenRingTool:
         """保存配置文件"""
         with open(self.config_file, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
+
+    def ensure_save_dir(self):
+        """确保存档目录存在，如果不存在则创建"""
+        if not os.path.exists(self.save_path):
+            try:
+                os.makedirs(self.save_path, exist_ok=True)
+                # 可以在这里记录日志或显示状态，但此时GUI可能还没完全初始化
+                # 所以我们在auto_detect_paths中统一处理
+                return True
+            except Exception as e:
+                print(f"创建存档目录失败: {e}")
+                return False
+        return True
     
     def auto_detect_paths(self):
         """自动检测Steam和游戏路径"""
@@ -147,7 +168,7 @@ class EldenRingTool:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
                                 r"Software\Valve\Steam")
             steam_path = winreg.QueryValueEx(key, "SteamPath")[0]
-            self.steam_path = steam_path.replace("/", "\\")
+            self.steam_path =  self.ensure_drive_uppercase(steam_path).replace("/", "\\")
             self.config["steam_path"] = self.steam_path
         except:
             self.steam_path = "未找到Steam路径"
@@ -155,17 +176,35 @@ class EldenRingTool:
         # 查找艾尔登法环游戏路径
         game_path = self.find_elden_ring_path()
         if game_path:
-            self.game_path = game_path
+            self.game_path = self.ensure_drive_uppercase(game_path)
             self.config["game_path"] = self.game_path
         else:
             self.game_path = "未找到游戏路径"
+
+        # 检查存档目录状态
+        if self.ensure_save_dir():
+            save_dir_status = "存档目录就绪"
+        else:
+            save_dir_status = "存档目录创建失败"
         
         # 更新UI
         self.steam_label.config(text=self.steam_path)
         self.game_label.config(text=self.game_path)
         self.save_config()
-        self.status("路径检测完成")
+        self.status(f"路径检测完成 - {save_dir_status}")
     
+    def ensure_drive_uppercase(self, path):
+        """确保Windows路径的盘符为大写"""
+        if not path or len(path) < 2:
+            return path
+        
+        # 检查是否有盘符（格式如 "c:" 或 "C:"）
+        if path[1] == ':' and path[0].isalpha():
+            # 将盘符转为大写
+            return path[0].upper() + path[1:]
+        
+        return path
+
     def find_elden_ring_path(self):
         """查找艾尔登法环游戏路径"""
         possible_paths = [
