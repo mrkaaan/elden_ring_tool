@@ -36,11 +36,6 @@ class EldenRingTool:
     def setup_ui(self):
         self.root.geometry("400x500")
 
-        # 标题
-        # title_label = tk.Label(self.root, text="艾尔登法环工具", 
-        #                       font=("Arial", 16, "bold"))
-        # title_label.pack(pady=10)
-        
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
         path_frame.pack(fill="x", padx=20, pady=3)
