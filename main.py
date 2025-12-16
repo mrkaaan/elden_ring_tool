@@ -9,6 +9,39 @@ import configparser
 from datetime import datetime
 import sys
 import threading
+import time
+
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+    
+    def show_tooltip(self, event=None):
+        if self.tooltip_window or not self.text:
+            return
+        
+        # 获取鼠标位置
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 20
+        
+        # 创建tooltip窗口
+        self.tooltip_window = tk.Toplevel(self.widget)
+        self.tooltip_window.wm_overrideredirect(True)
+        self.tooltip_window.wm_geometry(f"+{x}+{y}")
+        
+        label = tk.Label(self.tooltip_window, text=self.text, 
+                        background="lightyellow", relief="solid", 
+                        borderwidth=1, padx=5, pady=2)
+        label.pack()
+    
+    def hide_tooltip(self, event=None):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
 
 class EldenRingTool:
     def __init__(self, ui_type="mini"):
@@ -35,43 +68,45 @@ class EldenRingTool:
         self.auto_detect_paths()
         
     def setup_ui(self):
-        self.root.geometry("400x420")
+        self.root.geometry("350x430")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
-        path_frame.pack(fill="x", padx=20, pady=3)
+        path_frame.pack(fill="x", padx=20, pady=2)
         
         # Steam路径
         tk.Label(path_frame, text="Steam路径:").grid(row=0, column=0, sticky="w")
-        self.steam_label = tk.Label(path_frame, text=self.steam_path, 
-                                   fg="blue", cursor="hand2")
+        self.steam_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.steam_label.grid(row=0, column=1, sticky="w")
-        self.steam_label.bind("<Button-1>", lambda e: self.open_folder(self.steam_path))
-        
+
         # 游戏路径
         tk.Label(path_frame, text="游戏路径:").grid(row=1, column=0, sticky="w", pady=3)
-        self.game_label = tk.Label(path_frame, text=self.game_path, 
-                                  fg="blue", cursor="hand2")
+        self.game_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.game_label.grid(row=1, column=1, sticky="w", pady=3)
-        self.game_label.bind("<Button-1>", lambda e: self.open_folder(self.game_path))
-        
+
         # 存档路径
         tk.Label(path_frame, text="存档路径:").grid(row=2, column=0, sticky="w")
-        self.save_label = tk.Label(path_frame, text=self.save_path, 
-                                  fg="blue", cursor="hand2")
+        self.save_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.save_label.grid(row=2, column=1, sticky="w")
-        self.save_label.bind("<Button-1>", lambda e: self.open_folder(self.save_path))
 
         # 重新检测路径按钮 - 放在路径区域最下方
-        button_frame = tk.Frame(path_frame)
-        button_frame.grid(row=3, column=0, columnspan=2, pady=(10, 0))
-
-        tk.Button(button_frame, text="重新检测路径", 
-                command=self.auto_detect_paths, width=15).pack()
+        self.path_status_label = tk.Label(path_frame, 
+                                        text="就绪 (点击重新检测路径)",
+                                        fg="gray", cursor="hand2")
+        self.path_status_label.grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky="w")
+        
+        # 绑定点击事件到状态标签
+        self.path_status_label.bind("<Button-1>", lambda e: self.auto_detect_paths())
+        
+        # 添加悬停效果
+        self.path_status_label.bind("<Enter>", 
+                                    lambda e: self.path_status_label.config(fg="blue"))
+        self.path_status_label.bind("<Leave>", 
+                                    lambda e: self.path_status_label.config(fg="gray"))
         
         # MOD管理区域
         mod_frame = tk.LabelFrame(self.root, text="MOD管理", padx=10, pady=5)
-        mod_frame.pack(fill="x", padx=20, pady=10)
+        mod_frame.pack(fill="x", padx=20, pady=3)
         
         self.mod_status_label = tk.Label(mod_frame, 
                                         text="点击'获取MOD状态'按钮检测",
@@ -120,11 +155,11 @@ class EldenRingTool:
         
         # 导入存档按钮
         tk.Button(save_frame, text="导入存档", command=self.import_save,
-                 width=20).pack(side="left", padx=5)
+                 width=15).pack(side="left", padx=5)
         
         # 导出存档按钮
         tk.Button(save_frame, text="导出存档", command=self.export_save,
-                 width=20).pack(side="left", padx=5)
+                 width=15).pack(side="left", padx=5)
         
         # 状态栏
         self.status_bar = tk.Label(self.root, text="就绪", bd=1, 
@@ -159,10 +194,49 @@ class EldenRingTool:
                 return False
         return True
     
+    def update_path_labels(self):
+        """更新路径标签显示"""
+        # Steam路径
+        if os.path.exists(self.steam_path):
+            self.steam_label.config(text="Steam路径 ✓", fg="green", cursor="hand2")
+            # 移除之前的tooltip绑定（如果存在）
+            if hasattr(self.steam_label, 'tooltip'):
+                self.steam_label.tooltip = None
+            # 添加新的tooltip
+            self.steam_label.tooltip = ToolTip(self.steam_label, self.steam_path)
+            self.steam_label.bind("<Button-1>", lambda e: self.open_folder(self.steam_path))
+        else:
+            self.steam_label.config(text="Steam路径 ✗ (点击手动定位)", fg="red", cursor="hand2")
+            self.steam_label.bind("<Button-1>", lambda e: self.manual_locate_steam())
+        
+        # 游戏路径
+        if os.path.exists(self.game_path):
+            self.game_label.config(text="游戏路径 ✓", fg="green", cursor="hand2")
+            if hasattr(self.game_label, 'tooltip'):
+                self.game_label.tooltip = None
+            self.game_label.tooltip = ToolTip(self.game_label, self.game_path)
+            self.game_label.bind("<Button-1>", lambda e: self.open_folder(self.game_path))
+        else:
+            self.game_label.config(text="游戏路径 ✗ (点击手动定位)", fg="red", cursor="hand2")
+            self.game_label.bind("<Button-1>", lambda e: self.manual_locate_game())
+        
+        # 存档路径
+        if os.path.exists(self.save_path):
+            self.save_label.config(text="存档路径 ✓", fg="green", cursor="hand2")
+            if hasattr(self.save_label, 'tooltip'):
+                self.save_label.tooltip = None
+            self.save_label.tooltip = ToolTip(self.save_label, self.save_path)
+            self.save_label.bind("<Button-1>", lambda e: self.open_folder(self.save_path))
+        else:
+            self.save_label.config(text="存档路径 ✗ (点击手动定位)", fg="red", cursor="hand2")
+            self.save_label.bind("<Button-1>", lambda e: self.manual_locate_save())
+    
     def auto_detect_paths(self):
         """自动检测Steam和游戏路径"""
         self.status("正在检测路径...")
-        
+        # 更新路径状态标签为"正在检测..."
+        # self.path_status_label.config(text="正在检测...", fg="orange")
+
         # 从注册表获取Steam路径
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
@@ -188,8 +262,10 @@ class EldenRingTool:
             save_dir_status = "存档目录创建失败"
         
         # 更新UI
-        self.steam_label.config(text=self.steam_path)
-        self.game_label.config(text=self.game_path)
+        # self.steam_label.config(text=self.steam_path)
+        # self.game_label.config(text=self.game_path)
+        self.path_status_label.config(text="检测完成 (点击重新检测路径)", fg="gray")
+        self.update_path_labels()
         self.save_config()
         self.status(f"路径检测完成 - {save_dir_status}")
     
@@ -220,10 +296,37 @@ class EldenRingTool:
         
         # 如果没找到，让用户选择
         # path = filedialog.askdirectory(title="请选择Elden Ring的Game目录")
-        
+
         if path and os.path.exists(path):
             return path
         return None
+    
+    def manual_locate_steam(self):
+        """手动定位Steam路径"""
+        path = filedialog.askdirectory(title="请选择Steam安装目录")
+        if path:
+            self.steam_path = self.ensure_drive_uppercase(path)
+            self.config["steam_path"] = self.steam_path
+            self.update_path_labels()
+            self.save_config()
+
+    def manual_locate_game(self):
+        """手动定位游戏路径"""
+        path = filedialog.askdirectory(title="请选择ELDEN RING的Game目录")
+        if path:
+            self.game_path = self.ensure_drive_uppercase(path)
+            self.config["game_path"] = self.game_path
+            self.update_path_labels()
+            self.save_config()
+
+    def manual_locate_save(self):
+        """手动定位存档路径"""
+        path = filedialog.askdirectory(title="请选择存档目录")
+        if path:
+            self.save_path = self.ensure_drive_uppercase(path)
+            self.config["save_path"] = self.save_path
+            self.update_path_labels()
+            self.save_config()
     
     def import_mod(self):
         """导入MOD文件"""
