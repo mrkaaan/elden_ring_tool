@@ -1,4 +1,26 @@
 {
-  "game_path": "D:/projects/elden_ring_tool/test",
-  "steam_path": "D:\\program files (x86)\\steam"
+  "game_path": "D:/file/elden_ring_tool/test",
+  "steam_path": "D:\\program files (x86)\\steam",
+  "mods": {
+    "seamless_coop": {
+      "name": "无缝联机MOD",
+      "file_tree": {
+        "folders": {
+          "SeamlessCoop": {
+            "files": [
+              "ersc_settings.ini"
+            ],
+            "folders": {}
+          }
+        },
+        "files": [
+          "ersc_launcher.exe"
+        ]
+      },
+      "description": "艾尔登法环无缝联机MOD",
+      "source_dir": "mods/seamless_coop",
+      "target_dir": "game",
+      "config_file": "SeamlessCoop/ersc_settings.ini"
+    }
+  }
 }

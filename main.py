@@ -66,13 +66,14 @@ class EldenRingTool:
             self.setup_ui()
 
         self.auto_detect_paths()
+        self.ensure_mod_config() # 确保MOD配置存在
         self.root.after(100, self.initial_mod_check)  # 延迟100ms执行
 
     #region 程序的确认和运行
     def initial_mod_check(self):
         """初始检查MOD状态"""
-        self.check_mod_source_status()
-        self.check_mod_installed_status()
+        self.check_seamless_coop_source_status()
+        self.check_seamless_coop_installed_status()
 
     def run(self):
         """运行程序"""
@@ -92,7 +93,7 @@ class EldenRingTool:
         tk.Label(path_frame, text="Steam路径:").grid(row=0, column=0, sticky="w")
         self.steam_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.steam_label.grid(row=0, column=1, sticky="w")
-
+        
         # 游戏路径
         tk.Label(path_frame, text="游戏路径:").grid(row=1, column=0, sticky="w", pady=3)
         self.game_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
@@ -130,13 +131,13 @@ class EldenRingTool:
         tk.Label(mod_inner_frame, text="MOD源文件:", width=10, anchor="w").grid(row=0, column=0, sticky="w", pady=3)
         self.mod_source_status = tk.Label(mod_inner_frame, text="未检测", fg="gray", cursor="hand2")
         self.mod_source_status.grid(row=0, column=1, sticky="w", pady=3)
-        self.mod_source_status.bind("<Button-1>", lambda e: self.check_mod_source_status())
+        self.mod_source_status.bind("<Button-1>", lambda e: self.check_seamless_coop_source_status())
 
         # 第2行：目标目录MOD状态
         tk.Label(mod_inner_frame, text="已安装MOD:", width=10, anchor="w").grid(row=1, column=0, sticky="w", pady=3)
         self.mod_installed_status = tk.Label(mod_inner_frame, text="未检测", fg="gray", cursor="hand2")
         self.mod_installed_status.grid(row=1, column=1, sticky="w", pady=3)
-        self.mod_installed_status.bind("<Button-1>", lambda e: self.check_mod_installed_status())
+        self.mod_installed_status.bind("<Button-1>", lambda e: self.check_seamless_coop_installed_status())
 
         # 第3行：联机密码
         tk.Label(mod_inner_frame, text="联机密码:", width=10, anchor="w").grid(row=2, column=0, sticky="w", pady=3)
@@ -210,7 +211,7 @@ class EldenRingTool:
         self.status_bar.config(text=message)
         self.root.update()
     #endregion
-    
+
     #region 配置文件、目录确认、打开目录相关函数
     def load_config(self):
         """加载配置文件"""
@@ -317,8 +318,6 @@ class EldenRingTool:
             save_dir_status = "存档目录创建失败"
         
         # 更新UI
-        # self.steam_label.config(text=self.steam_path)
-        # self.game_label.config(text=self.game_path)
         self.path_status_label.config(text="检测完成 (点击重新检测路径)", fg="gray")
         self.update_path_labels()
         self.save_config()
@@ -385,176 +384,336 @@ class EldenRingTool:
     #endregion
 
     #region mod文件相关函数
-    def check_mod_source_status(self):
-        """检查MOD源文件状态"""
-        mods_dir = "mods"
+    def ensure_mod_config(self):
+        """确保MOD配置存在"""
+        if "mods" not in self.config:
+            self.config["mods"] = {}
         
-        # 如果mods目录不存在，创建它
-        if not os.path.exists(mods_dir):
-            os.makedirs(mods_dir, exist_ok=True)
-            self.mod_source_status.config(text="mods目录已创建", fg="orange")
+        # 添加无缝联机MOD的配置 - 使用树状结构
+        if "seamless_coop" not in self.config["mods"]:
+            self.config["mods"]["seamless_coop"] = {
+                "name": "无缝联机MOD",
+                "file_tree": {
+                    # 根目录下的文件夹
+                    "folders": {
+                        "SeamlessCoop": {
+                            "files": ["ersc_settings.ini"],  # SeamlessCoop文件夹下的文件
+                            "folders": {}  # SeamlessCoop文件夹下的子文件夹
+                        }
+                    },
+                    # 根目录下的文件
+                    "files": ["ersc_launcher.exe"]
+                },
+                "description": "艾尔登法环无缝联机MOD",
+                "source_dir": "mods/seamless_coop",  # 源文件存放目录
+                "target_dir": "game",  # 游戏目录相对路径
+                "config_file": "SeamlessCoop/ersc_settings.ini"  # 配置文件路径
+            }
+            self.save_config()
+
+    def check_mod_structure(self, directory, file_tree):
+        """
+        通用的MOD结构检查函数（支持树状结构）
+        
+        Args:
+            directory: 要检查的目录
+            file_tree: 树状结构配置，格式：
+                {
+                    "folders": {
+                        "folder1": {
+                            "files": ["file1.txt", "file2.txt"],
+                            "folders": {}  # 子文件夹
+                        }
+                    },
+                    "files": ["root_file1.exe", "root_file2.dll"]
+                }
+        
+        Returns:
+            tuple: (is_valid, status_message, details)
+        """
+        if not os.path.exists(directory):
+            return False, "目录不存在", {}
+        
+        found_folders = []
+        found_files = []
+        missing_folders = []
+        missing_files = []
+        
+        # 检查根目录下的文件
+        for file in file_tree.get("files", []):
+            file_path = os.path.join(directory, file)
+            if os.path.exists(file_path):
+                found_files.append(file)
+            else:
+                missing_files.append(file)
+        
+        # 检查根目录下的文件夹
+        for folder_name, folder_config in file_tree.get("folders", {}).items():
+            folder_path = os.path.join(directory, folder_name)
+            
+            if os.path.exists(folder_path):
+                found_folders.append(folder_name)
+                
+                # 递归检查文件夹内的文件
+                if "files" in folder_config:
+                    for file in folder_config.get("files", []):
+                        nested_file_path = os.path.join(folder_path, file)
+                        relative_path = f"{folder_name}/{file}"
+                        
+                        if os.path.exists(nested_file_path):
+                            found_files.append(relative_path)
+                        else:
+                            missing_files.append(relative_path)
+                
+                # 递归检查子文件夹（如果需要多层嵌套）
+                if "folders" in folder_config:
+                    # 目前只支持一层嵌套，如果需要多层可以递归调用
+                    for subfolder_name, subfolder_config in folder_config.get("folders", {}).items():
+                        subfolder_path = os.path.join(folder_path, subfolder_name)
+                        relative_path = f"{folder_name}/{subfolder_name}"
+                        
+                        if os.path.exists(subfolder_path):
+                            found_folders.append(relative_path)
+                            
+                            # 检查子文件夹内的文件
+                            if "files" in subfolder_config:
+                                for file in subfolder_config.get("files", []):
+                                    nested_file_path = os.path.join(subfolder_path, file)
+                                    deeper_path = f"{folder_name}/{subfolder_name}/{file}"
+                                    
+                                    if os.path.exists(nested_file_path):
+                                        found_files.append(deeper_path)
+                                    else:
+                                        missing_files.append(deeper_path)
+                        else:
+                            missing_folders.append(relative_path)
+            else:
+                missing_folders.append(folder_name)
+        
+        # 生成状态信息
+        total_required = len(file_tree.get("files", [])) + len(file_tree.get("folders", {}))
+        total_found = len(found_folders) + len(found_files)
+        
+        details = {
+            "found_folders": found_folders,
+            "found_files": found_files,
+            "missing_folders": missing_folders,
+            "missing_files": missing_files,
+            "total_required": total_required,
+            "total_found": total_found
+        }
+        
+        # 判断状态
+        if not missing_folders and not missing_files:
+            return True, "完整", details
+        elif found_folders or found_files:
+            # 部分存在
+            status_msg = f"部分存在 ({total_found}/{total_required})"
+            return False, status_msg, details
+        else:
+            return False, "未找到所需文件", details
+   
+    def check_seamless_coop_structure(self, directory):
+        """检查无缝联机MOD结构"""
+        mod_config = self.config["mods"]["seamless_coop"]
+        file_tree = mod_config["file_tree"]
+        return self.check_mod_structure(directory, file_tree)
+
+    def check_seamless_coop_source_status(self):
+        """检查无缝联机MOD源文件状态"""
+        mod_config = self.config["mods"]["seamless_coop"]
+        source_dir = mod_config["source_dir"]
+        
+        # 如果源目录不存在，则不继续执行
+        if not os.path.exists(source_dir):
+            # os.makedirs(source_dir, exist_ok=True)
+            # self.mod_source_status.config(text="MOD源目录已创建", fg="orange")
             return
         
-        # 查找MOD文件
-        mod_files = self.find_mod_files(mods_dir)
-        
-        if not mod_files:
-            self.mod_source_status.config(text="未找到MOD文件", fg="red")
-        else:
-            # 分析找到的文件
-            has_folder = any(os.path.isdir(f) and os.path.basename(f) == "SeamlessCoop" for f in mod_files)
-            has_exe = any(os.path.isfile(f) and os.path.basename(f) == "ersc_launcher.exe" for f in mod_files)
-            
-            if has_folder and has_exe:
-                self.mod_source_status.config(text="完整MOD文件 ✓", fg="green")
-            elif has_folder or has_exe:
-                status = "部分文件" + ("(有文件夹)" if has_folder else "(有执行文件)")
-                self.mod_source_status.config(text=status, fg="orange")
-            else:
-                # 可能是压缩包或其他文件
-                self.mod_source_status.config(text=f"找到{len(mod_files)}个文件", fg="blue")
+        # 检查MOD结构
+        is_valid, status_msg, details = self.check_seamless_coop_structure(source_dir)
+        print(is_valid, status_msg, details)
 
-    def check_mod_installed_status(self):
-        """检查已安装的MOD状态"""
+        if is_valid:
+            self.mod_source_status.config(text="MOD源文件完整 ✓", fg="green")
+        elif details["total_found"] > 0:
+            self.mod_source_status.config(text=status_msg, fg="orange")
+        else:
+            self.mod_source_status.config(text="未找到MOD源文件", fg="red")
+
+    def check_seamless_coop_installed_status(self):
+        """检查已安装的无缝联机MOD状态"""
         if not os.path.exists(self.game_path):
             self.mod_installed_status.config(text="游戏路径未找到", fg="red")
             return
         
-        # 检查关键文件
-        coop_folder = os.path.join(self.game_path, "SeamlessCoop")
-        coop_exe = os.path.join(self.game_path, "ersc_launcher.exe")
+        # 检查游戏目录中的MOD结构
+        is_valid, status_msg, details = self.check_seamless_coop_structure(self.game_path)
         
-        has_folder = os.path.exists(coop_folder)
-        has_exe = os.path.exists(coop_exe)
-        
-        if has_folder and has_exe:
+        if is_valid:
             self.mod_installed_status.config(text="已安装 ✓", fg="green")
-            # 检查配置文件
-            config_file = os.path.join(coop_folder, "ersc_settings.ini")
-            if os.path.exists(config_file):
-                self.load_mod_config(config_file)
-            else:
-                self.mod_password_label.config(text="无配置文件", fg="orange")
-                self.mod_debuff_label.config(text="无配置文件", fg="orange")
-        elif has_folder or has_exe:
-            status = "部分安装" + ("(有文件夹)" if has_folder else "(有执行文件)")
-            self.mod_installed_status.config(text=status, fg="orange")
-            self.mod_password_label.config(text="-", fg="gray")
-            self.mod_debuff_label.config(text="-", fg="gray")
+            # 加载配置
+            self.load_seamless_coop_config()
         else:
-            self.mod_installed_status.config(text="未安装", fg="red")
+            if details["total_found"] > 0:
+                self.mod_installed_status.config(text=status_msg, fg="orange")
+            else:
+                self.mod_installed_status.config(text="未安装", fg="red")
+            
+            # 清空配置显示
             self.mod_password_label.config(text="-", fg="gray")
             self.mod_debuff_label.config(text="-", fg="gray")
 
-    def find_mod_files(self, directory):
-        """在目录中查找MOD相关文件"""
-        mod_files = []
+    def import_mod(self, source_dir, target_dir, file_tree, overwrite=False):
+        """
+        通用的MOD导入函数（支持树状结构）
         
-        for item in os.listdir(directory):
-            item_path = os.path.join(directory, item)
+        Args:
+            source_dir: 源目录
+            target_dir: 目标目录
+            file_tree: 树状结构配置
+            overwrite: 是否直接覆盖，不询问
+        
+        Returns:
+            tuple: (imported_items, skipped_items)
+        """
+        # 检查源目录
+        is_valid, status_msg, details = self.check_mod_structure(source_dir, file_tree)
+        if details["total_found"] == 0:
+            raise Exception(f"源目录中未找到MOD文件: {status_msg}")
+        
+        imported_items = []
+        skipped_items = []
+        
+        # 导入根目录下的文件
+        for file in file_tree.get("files", []):
+            src_path = os.path.join(source_dir, file)
+            dst_path = os.path.join(target_dir, file)
             
-            # 检查是否是MOD相关文件
-            if os.path.isdir(item_path) and item == "SeamlessCoop":
-                mod_files.append(item_path)
-            elif os.path.isfile(item_path) and item == "ersc_launcher.exe":
-                mod_files.append(item_path)
-            elif os.path.isfile(item_path) and item.lower().endswith(('.zip', '.rar', '.7z')):
-                mod_files.append(item_path)
-            # 如果目录包含SeamlessCoop或ersc_launcher.exe，也添加到列表
-            elif os.path.isdir(item_path):
-                sub_files = self.find_mod_files(item_path)
-                if sub_files:
-                    mod_files.extend(sub_files)
+            # 检查源文件是否存在
+            if not os.path.exists(src_path):
+                skipped_items.append(f"源文件不存在: {file}")
+                continue
+            
+            imported = self._copy_item(src_path, dst_path, file, overwrite)
+            if imported:
+                imported_items.append(file)
+            else:
+                skipped_items.append(f"跳过: {file}")
         
-        return mod_files
+        # 导入文件夹
+        for folder_name, folder_config in file_tree.get("folders", {}).items():
+            src_folder_path = os.path.join(source_dir, folder_name)
+            dst_folder_path = os.path.join(target_dir, folder_name)
+            
+            # 检查源文件夹是否存在
+            if not os.path.exists(src_folder_path):
+                skipped_items.append(f"源文件夹不存在: {folder_name}")
+                continue
+            
+            # 导入文件夹本身
+            imported = self._copy_item(src_folder_path, dst_folder_path, folder_name, overwrite, is_folder=True)
+            if imported:
+                imported_items.append(folder_name)
+            else:
+                skipped_items.append(f"跳过: {folder_name}")
+                continue  # 如果文件夹跳过，不再处理其中的文件
+            
+            # 导入文件夹内的文件
+            if "files" in folder_config:
+                for file in folder_config.get("files", []):
+                    src_file_path = os.path.join(src_folder_path, file)
+                    dst_file_path = os.path.join(dst_folder_path, file)
+                    
+                    # 检查源文件是否存在
+                    if not os.path.exists(src_file_path):
+                        skipped_items.append(f"源文件不存在: {folder_name}/{file}")
+                        continue
+                    
+                    imported = self._copy_item(src_file_path, dst_file_path, f"{folder_name}/{file}", overwrite)
+                    if imported:
+                        imported_items.append(f"{folder_name}/{file}")
+                    else:
+                        skipped_items.append(f"跳过: {folder_name}/{file}")
+        
+        return imported_items, skipped_items
 
-    def import_mod_with_option(self):
-        """带选项的导入MOD功能"""
+    def _copy_item(self, src_path, dst_path, item_name, overwrite, is_folder=False):
+        """复制单个文件或文件夹"""
+        try:
+            # 检查目标文件是否存在
+            if os.path.exists(dst_path):
+                if not overwrite:
+                    # 询问是否覆盖
+                    response = messagebox.askyesno("覆盖确认", 
+                        f"目标文件已存在: {item_name}\n是否覆盖？")
+                    if not response:
+                        return False
+                
+                # 删除已存在的文件/文件夹
+                if os.path.isdir(dst_path):
+                    shutil.rmtree(dst_path)
+                else:
+                    os.remove(dst_path)
+            
+            # 复制文件/文件夹
+            if is_folder or os.path.isdir(src_path):
+                shutil.copytree(src_path, dst_path)
+            else:
+                shutil.copy2(src_path, dst_path)
+            
+            return True
+        except Exception as e:
+            print(f"复制 {item_name} 失败: {str(e)}")
+            return False
+
+    def import_seamless_coop_mod(self):
+        """导入无缝联机MOD的特化函数"""
         # 检查游戏路径
         if not os.path.exists(self.game_path):
             messagebox.showerror("错误", "请先找到游戏路径！")
-            return
+            return False
         
-        # 选择MOD文件
-        file_path = filedialog.askopenfilename(
-            title="选择MOD文件",
-            filetypes=[("所有文件", "*.*"), ("ZIP文件", "*.zip"), 
-                    ("RAR文件", "*.rar"), ("7Z文件", "*.7z")]
-        )
+        # 获取MOD配置
+        mod_config = self.config["mods"]["seamless_coop"]
+        source_dir = mod_config["source_dir"]
+        file_tree = mod_config["file_tree"]
         
-        if not file_path:
-            return
+        # 检查源目录
+        is_valid, status_msg, details = self.check_seamless_coop_structure(source_dir)
+        if details["total_found"] == 0:
+            messagebox.showinfo("提示", f"请在以下目录中放置无缝联机MOD文件:\n{source_dir}")
+            return False
         
-        # 检查目标目录是否已有MOD文件
-        coop_folder = os.path.join(self.game_path, "SeamlessCoop")
-        coop_exe = os.path.join(self.game_path, "ersc_launcher.exe")
+        # 使用覆盖选项
+        overwrite_option = self.overwrite_var.get()
         
-        has_existing = os.path.exists(coop_folder) or os.path.exists(coop_exe)
-        
-        # 如果存在已有文件且未勾选"直接覆盖"，则询问
-        if has_existing and not self.overwrite_var.get():
-            response = messagebox.askyesnocancel("覆盖确认", 
-                f"目标目录已存在MOD文件。\n是否覆盖？\n\n" +
-                f"点击'是'覆盖，'否'取消操作")
-            
-            if not response:  # 用户点击"否"或"取消"
-                return
-        
-        # 导入MOD
         try:
-            self.import_mod_file(file_path)
-            messagebox.showinfo("成功", "MOD导入完成！")
-            # 更新状态
-            self.check_mod_installed_status()
+            # 导入MOD
+            imported_items, skipped_items = self.import_mod(
+                source_dir, 
+                self.game_path, 
+                file_tree, 
+                overwrite_option
+            )
+            
+            if imported_items:
+                messagebox.showinfo("成功", f"导入完成！\n导入项目: {len(imported_items)}个")
+                # 更新状态
+                self.check_seamless_coop_installed_status()
+                return True
+            else:
+                messagebox.showwarning("警告", "没有文件被导入")
+                return False
+                
         except Exception as e:
             messagebox.showerror("错误", f"导入失败:\n{str(e)}")
+            return False
 
-    def import_mod_file(self, file_path):
-        """导入MOD文件的核心函数"""
-        temp_dir = "temp_mod_extract"
-        
-        # 清理临时目录
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
-        
-        os.makedirs(temp_dir)
-        
-        try:
-            # 处理压缩包
-            if file_path.lower().endswith('.zip'):
-                with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                    zip_ref.extractall(temp_dir)
-                source_dir = temp_dir
-            else:
-                # 假设是文件夹或直接文件
-                source_dir = file_path
-            
-            # 查找MOD文件
-            found_files = []
-            for root, dirs, files in os.walk(source_dir):
-                # 查找SeamlessCoop文件夹
-                if "SeamlessCoop" in dirs:
-                    src = os.path.join(root, "SeamlessCoop")
-                    dst = os.path.join(self.game_path, "SeamlessCoop")
-                    if os.path.exists(dst):
-                        shutil.rmtree(dst)
-                    shutil.copytree(src, dst)
-                    found_files.append("SeamlessCoop")
-                
-                # 查找ersc_launcher.exe
-                if "ersc_launcher.exe" in files:
-                    src = os.path.join(root, "ersc_launcher.exe")
-                    dst = os.path.join(self.game_path, "ersc_launcher.exe")
-                    shutil.copy2(src, dst)
-                    found_files.append("ersc_launcher.exe")
-            
-            if not found_files:
-                raise Exception("未找到有效的MOD文件")
-                
-        finally:
-            # 清理临时目录
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
+    def import_mod_with_option(self):
+        """界面调用的导入函数（无缝联机MOD特化）"""
+        return self.import_seamless_coop_mod()
+
     #endregion
 
     #region 存档文件相关函数
@@ -605,11 +764,19 @@ class EldenRingTool:
     #endregion
 
     #region 编辑mod文件相关函数
-    def load_mod_config(self, config_file):
-        """加载MOD配置文件"""
+    def load_seamless_coop_config(self):
+        """加载无缝联机MOD配置"""
+        mod_config = self.config["mods"]["seamless_coop"]
+        config_file_path = os.path.join(self.game_path, mod_config["config_file"])
+        
+        if not os.path.exists(config_file_path):
+            self.mod_password_label.config(text="无配置文件", fg="orange")
+            self.mod_debuff_label.config(text="无配置文件", fg="orange")
+            return
+        
         try:
             config = configparser.ConfigParser()
-            config.read(config_file, encoding='utf-8')
+            config.read(config_file_path, encoding='utf-8')
             
             # 获取联机密码
             password = config.get('settings', 'cooppassword', fallback='未设置')
