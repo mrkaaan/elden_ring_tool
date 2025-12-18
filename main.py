@@ -205,7 +205,7 @@ class EldenRingTool:
         debuff_radio_frame.pack(side="left")
 
         # 创建单选按钮变量
-        self.debuff_var = tk.IntVar(value=1)  # 默认启用(1)
+        self.debuff_var = tk.IntVar(value=-1)  # 初始设置为-1（不选中任何选项）
 
         # 启用单选按钮
         enable_radio = tk.Radiobutton(debuff_radio_frame, text="启用(1)", 
@@ -587,7 +587,7 @@ class EldenRingTool:
         is_valid, status_msg, details = self.check_seamless_coop_structure(self.game_path)
         
         if is_valid:
-            self.mod_installed_status.config(text="已安装 ✓", fg="green")
+            self.mod_installed_status.config(text="已安装 ✓ (点击刷新)", fg="green")
             # 加载配置
             self.load_seamless_coop_config()
         else:
@@ -802,8 +802,9 @@ class EldenRingTool:
         config_file_path = os.path.join(self.game_path, mod_config["config_file"])
         
         if not os.path.exists(config_file_path):
-            # 如果配置文件不存在，使用默认值
-            print(f"配置文件不存在: {config_file_path}")
+            # 如果配置文件不存在，清空显示
+            self.password_var.set("")
+            self.debuff_var.set(-1)  # 设置为无效值，使单选按钮都不选中
             return
         
         try:
@@ -811,23 +812,36 @@ class EldenRingTool:
             config.read(config_file_path, encoding='utf-8')
             
             # 获取联机密码
-            password = config.get('settings', 'cooppassword', fallback='4820')
-            # 更新密码输入框
-            if password.isdigit():
-                self.password_var.set(password)
+            password = ""
+            if config.has_section('PASSWORD'):
+                password = config.get('PASSWORD', 'cooppassword', fallback='')
+                # 去除可能的空格
+                password = password.strip()
+            
+            # 只显示读取到的值，不设置默认值
+            self.password_var.set(password)
             
             # 获取死亡惩罚
-            debuff = config.get('settings', 'death_debuffs', fallback='1')
-            # 更新单选按钮状态
-            try:
-                debuff_value = int(debuff)
-                if debuff_value in [0, 1]:
-                    self.debuff_var.set(debuff_value)
-            except ValueError:
-                pass  # 保持默认值
-                
+            debuff_value = -1  # 默认设置为无效值，表示未读取到有效值
+            if config.has_section('GAMEPLAY'):
+                debuff_str = config.get('GAMEPLAY', 'death_debuffs', fallback='')
+                # 尝试转换为整数
+                try:
+                    debuff_value = int(debuff_str.strip())
+                    # 只接受0或1，否则设为-1
+                    if debuff_value not in [0, 1]:
+                        debuff_value = -1
+                except (ValueError, AttributeError):
+                    debuff_value = -1
+            
+            # 设置死亡惩罚单选按钮的值
+            self.debuff_var.set(debuff_value)
+            
         except Exception as e:
             print(f"读取MOD配置失败: {str(e)}")
+            # 出错时清空显示
+            self.password_var.set("")
+            self.debuff_var.set(-1)
 
     def update_password(self):
         """更新联机密码"""
@@ -840,27 +854,39 @@ class EldenRingTool:
         config_file = os.path.join(coop_folder, "ersc_settings.ini")
         
         new_password = self.password_var.get().strip()
-        if not new_password.isdigit() or len(new_password) != 4:
+        
+        # 检查密码是否为空
+        if not new_password:
+            response = messagebox.askyesno("确认", "密码为空，是否清空配置文件中的密码？")
+            if not response:
+                return
+        
+        # 如果密码不为空，验证格式
+        elif not new_password.isdigit() or len(new_password) != 4:
             messagebox.showwarning("警告", "请输入4位数字密码")
             return
         
         try:
             config = configparser.ConfigParser()
-            # 如果配置文件不存在，创建它
-            if not os.path.exists(config_file):
-                config['settings'] = {}
-            else:
+            # 读取现有配置
+            if os.path.exists(config_file):
                 config.read(config_file, encoding='utf-8')
             
-            if not config.has_section('settings'):
-                config.add_section('settings')
+            # 确保有PASSWORD部分
+            if not config.has_section('PASSWORD'):
+                config.add_section('PASSWORD')
             
-            config.set('settings', 'cooppassword', new_password)
+            # 更新密码（即使是空字符串也写入）
+            config.set('PASSWORD', 'cooppassword', new_password)
             
+            # 写入文件
             with open(config_file, 'w', encoding='utf-8') as f:
                 config.write(f)
             
-            self.status(f"密码已更新为: {new_password}")
+            if new_password:
+                self.status(f"密码已更新为: {new_password}")
+            else:
+                self.status("密码已清空")
             
         except Exception as e:
             messagebox.showerror("错误", f"更新密码失败:\n{str(e)}")
@@ -873,21 +899,26 @@ class EldenRingTool:
             messagebox.showwarning("警告", "请先导入MOD文件")
             return
         
+        # 检查值是否有效
+        if value not in [0, 1]:
+            return
+        
         config_file = os.path.join(coop_folder, "ersc_settings.ini")
         
         try:
             config = configparser.ConfigParser()
-            # 如果配置文件不存在，创建它
-            if not os.path.exists(config_file):
-                config['settings'] = {}
-            else:
+            # 读取现有配置
+            if os.path.exists(config_file):
                 config.read(config_file, encoding='utf-8')
             
-            if not config.has_section('settings'):
-                config.add_section('settings')
+            # 确保有GAMEPLAY部分
+            if not config.has_section('GAMEPLAY'):
+                config.add_section('GAMEPLAY')
             
-            config.set('settings', 'death_debuffs', str(value))
+            # 更新death_debuffs
+            config.set('GAMEPLAY', 'death_debuffs', str(value))
             
+            # 写入文件
             with open(config_file, 'w', encoding='utf-8') as f:
                 config.write(f)
             

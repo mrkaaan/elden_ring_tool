@@ -80,3 +80,8 @@ C:\Users\Administrator\AppData\Roaming\EldenRing
 4 这些目录什么可以的话最好是用一些全局的变量去存储，方便我调试
 
 好像功能需求写着写着就不能用bat实现了，那就用python+tk吧
+
+
+
+修改ini文件后空行和注释都会消失的问题，能不能解决，不能解决也不影响
+删除ini测试一下
