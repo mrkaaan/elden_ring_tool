@@ -83,19 +83,19 @@ class EldenRingTool:
     #region 界面构建相关函数
     def setup_ui(self):
         """设置UI界面"""
-        self.root.geometry("350x600")
+        self.root.geometry("300x500")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
-        path_frame.pack(fill="x", padx=20, pady=2)
+        path_frame.pack(fill="x", padx=15, pady=2)
         
         # Steam路径
         tk.Label(path_frame, text="Steam路径:").grid(row=0, column=0, sticky="w")
         self.steam_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.steam_label.grid(row=0, column=1, sticky="w")
-        
+
         # 游戏路径
-        tk.Label(path_frame, text="游戏路径:").grid(row=1, column=0, sticky="w", pady=3)
+        tk.Label(path_frame, text="游戏路径:").grid(row=1, column=0, sticky="w")
         self.game_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.game_label.grid(row=1, column=1, sticky="w", pady=3)
 
@@ -104,94 +104,128 @@ class EldenRingTool:
         self.save_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.save_label.grid(row=2, column=1, sticky="w")
 
-        # 重新检测路径按钮 - 放在路径区域最下方
-        self.path_status_label = tk.Label(path_frame, 
-                                        text="就绪 (点击重新检测路径)",
+        # 工具目录链接和重新检测路径状态标签（使用grid放在同一行）
+        link_frame = tk.Frame(path_frame)
+        link_frame.grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky="we")
+
+        # 左边：工具目录链接（第0列，左对齐）
+        self.tool_dir_link = tk.Label(link_frame, 
+                                    text="打开工具目录",
+                                    fg="gray", cursor="hand2")
+        self.tool_dir_link.grid(row=0, column=0, sticky="w", padx=(0, 25))
+        self.tool_dir_link.bind("<Button-1>", lambda e: self.open_folder(os.getcwd()))
+        self.tool_dir_link.bind("<Enter>", 
+                                lambda e: self.tool_dir_link.config(fg="blue"))
+        self.tool_dir_link.bind("<Leave>", 
+                                lambda e: self.tool_dir_link.config(fg="gray"))
+
+        # 右边：路径状态标签（第1列，右对齐）
+        self.path_status_label = tk.Label(link_frame, 
+                                        text="点击重新检测路径",
                                         fg="gray", cursor="hand2")
-        self.path_status_label.grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky="w")
-        
-        # 绑定点击事件到状态标签
+        self.path_status_label.grid(row=0, column=1, sticky="e")
         self.path_status_label.bind("<Button-1>", lambda e: self.auto_detect_paths())
-        
-        # 添加悬停效果
         self.path_status_label.bind("<Enter>", 
                                     lambda e: self.path_status_label.config(fg="blue"))
         self.path_status_label.bind("<Leave>", 
                                     lambda e: self.path_status_label.config(fg="gray"))
+
+        # 让第1列自动扩展填充空间
+        link_frame.grid_columnconfigure(0, weight=0)   # 第0列不扩展
+        link_frame.grid_columnconfigure(1, weight=1)   # 第1列扩展，这样就会把右侧标签推到右边
         
         # MOD管理区域
-        mod_frame = tk.LabelFrame(self.root, text="MOD管理", padx=10, pady=5)
-        mod_frame.pack(fill="x", padx=20, pady=3)
+        mod_frame = tk.LabelFrame(self.root, text="MOD管理", padx=10, pady=10)
+        mod_frame.pack(fill="x", padx=15, pady=2)
 
         # 使用网格布局，更整齐
         mod_inner_frame = tk.Frame(mod_frame)
-        mod_inner_frame.pack(fill="x", padx=5, pady=5)
+        mod_inner_frame.pack(fill="x")
 
-        # 第1行：原MOD文件状态
+        # 原MOD文件状态
         tk.Label(mod_inner_frame, text="MOD源文件:", width=10, anchor="w").grid(row=0, column=0, sticky="w", pady=3)
         self.mod_source_status = tk.Label(mod_inner_frame, text="未检测", fg="gray", cursor="hand2")
         self.mod_source_status.grid(row=0, column=1, sticky="w", pady=3)
         self.mod_source_status.bind("<Button-1>", lambda e: self.check_seamless_coop_source_status())
 
-        # 第2行：目标目录MOD状态
+        # 目标目录MOD状态
         tk.Label(mod_inner_frame, text="已安装MOD:", width=10, anchor="w").grid(row=1, column=0, sticky="w", pady=3)
         self.mod_installed_status = tk.Label(mod_inner_frame, text="未检测", fg="gray", cursor="hand2")
         self.mod_installed_status.grid(row=1, column=1, sticky="w", pady=3)
         self.mod_installed_status.bind("<Button-1>", lambda e: self.check_seamless_coop_installed_status())
 
-        # 第3行：联机密码
-        tk.Label(mod_inner_frame, text="联机密码:", width=10, anchor="w").grid(row=2, column=0, sticky="w", pady=3)
-        self.mod_password_label = tk.Label(mod_inner_frame, text="未设置", fg="gray")
-        self.mod_password_label.grid(row=2, column=1, sticky="w", pady=3)
-
-        # 第4行：死亡惩罚
-        tk.Label(mod_inner_frame, text="死亡惩罚:", width=10, anchor="w").grid(row=3, column=0, sticky="w", pady=3)
-        self.mod_debuff_label = tk.Label(mod_inner_frame, text="未设置", fg="gray")
-        self.mod_debuff_label.grid(row=3, column=1, sticky="w", pady=3)
-
-        # 操作区域
-        mod_ops_frame = tk.Frame(mod_frame)
-        mod_ops_frame.pack(fill="x", padx=5, pady=10)
+        # 操作区域 - 放在状态信息下面
+        ops_frame = tk.Frame(mod_frame)
+        ops_frame.pack(fill="x", pady=(10, 0))
 
         # 导入MOD按钮
-        self.import_mod_btn = tk.Button(mod_ops_frame, text="导入MOD文件", 
-                                    command=self.import_mod_with_option, width=15)
-        self.import_mod_btn.pack(side="left", padx=5)
+        import_btn_frame = tk.Frame(ops_frame)
+        import_btn_frame.pack(fill="x", pady=(0, 10))
+
+        tk.Button(import_btn_frame, text="导入MOD文件", 
+                command=self.import_mod_with_option, width=15).pack(side="left", padx=(0, 10))
 
         # 覆盖选项
         self.overwrite_var = tk.BooleanVar(value=True)  # 默认勾选
-        self.overwrite_check = tk.Checkbutton(mod_ops_frame, text="直接覆盖不询问", 
-                                            variable=self.overwrite_var)
-        self.overwrite_check.pack(side="left", padx=5)
+        overwrite_check = tk.Checkbutton(import_btn_frame, text="直接覆盖", 
+                                        variable=self.overwrite_var)
+        overwrite_check.pack(side="left")
 
-        # 密码修改区域
-        mod_config_frame = tk.Frame(mod_frame)
-        mod_config_frame.pack(fill="x", padx=5, pady=5)
+        # 配置区域 - 放在导入按钮下方
+        config_frame = tk.Frame(ops_frame)
+        config_frame.pack(fill="x", pady=(0, 5))
 
-        # 密码设置
-        pass_row = tk.Frame(mod_config_frame)
-        pass_row.pack(fill="x", pady=3)
+        # 密码设置行
+        pass_row = tk.Frame(config_frame)
+        pass_row.pack(fill="x", pady=5)
 
-        tk.Label(pass_row, text="设置密码:", width=10, anchor="w").pack(side="left")
-        self.password_var = tk.StringVar(value="4820")
+        tk.Label(pass_row, text="设置密码:", width=8, anchor="w").pack(side="left")
+        self.password_var = tk.StringVar(value="")
         tk.Entry(pass_row, textvariable=self.password_var, 
                 width=10).pack(side="left", padx=5)
-        tk.Button(pass_row, text="修改", 
-                command=self.update_password, width=6).pack(side="left")
 
-        # death_debuffs设置
-        debuff_row = tk.Frame(mod_config_frame)
-        debuff_row.pack(fill="x", pady=3)
+        # 修改密码链接
+        self.update_pass_link = tk.Label(pass_row, text="修改", 
+                                        fg="gray", cursor="hand2")
+        self.update_pass_link.pack(side="left", padx=5)
+        self.update_pass_link.bind("<Button-1>", lambda e: self.update_password())
+        self.update_pass_link.bind("<Enter>", 
+                                lambda e: self.update_pass_link.config(fg="blue"))
+        self.update_pass_link.bind("<Leave>", 
+                                lambda e: self.update_pass_link.config(fg="gray"))
 
-        tk.Label(debuff_row, text="死亡惩罚:", width=10, anchor="w").pack(side="left")
-        tk.Button(debuff_row, text="启用(1)", 
-                command=lambda: self.set_debuff(1), width=8).pack(side="left", padx=2)
-        tk.Button(debuff_row, text="禁用(0)", 
-                command=lambda: self.set_debuff(0), width=8).pack(side="left")
+        # 死亡惩罚设置行
+        debuff_row = tk.Frame(config_frame)
+        debuff_row.pack(fill="x", pady=5)
+
+        tk.Label(debuff_row, text="死亡惩罚:", width=8, anchor="w").pack(side="left")
+
+        # 单选按钮
+        debuff_radio_frame = tk.Frame(debuff_row)
+        debuff_radio_frame.pack(side="left")
+
+        # 创建单选按钮变量
+        self.debuff_var = tk.IntVar(value=1)  # 默认启用(1)
+
+        # 启用单选按钮
+        enable_radio = tk.Radiobutton(debuff_radio_frame, text="启用(1)", 
+                                    variable=self.debuff_var, value=1,
+                                    command=lambda: self.set_debuff(1))
+        enable_radio.pack(side="left", padx=5)
+
+        # 禁用单选按钮
+        disable_radio = tk.Radiobutton(debuff_radio_frame, text="禁用(0)", 
+                                    variable=self.debuff_var, value=0,
+                                    command=lambda: self.set_debuff(0))
+        disable_radio.pack(side="left", padx=5)
+
+        # 单选按钮
+        debuff_radio_frame = tk.Frame(debuff_row)
+        debuff_radio_frame.pack(side="left")
         
         # 存档管理区域
-        save_frame = tk.LabelFrame(self.root, text="存档管理", padx=10, pady=5)
-        save_frame.pack(fill="x", padx=20, pady=10)
+        save_frame = tk.LabelFrame(self.root, text="存档管理", padx=10, pady=10)
+        save_frame.pack(fill="x", padx=15, pady=2)
         
         # 导入存档按钮
         tk.Button(save_frame, text="导入存档", command=None,
@@ -272,6 +306,8 @@ class EldenRingTool:
                 self.game_label.tooltip = None
             self.game_label.tooltip = ToolTip(self.game_label, self.game_path)
             self.game_label.bind("<Button-1>", lambda e: self.open_folder(self.game_path))
+            # 当游戏路径存在时，自动刷新MOD状态
+            self.check_seamless_coop_installed_status()
         else:
             self.game_label.config(text="游戏路径 ✗ (点击手动定位)", fg="red", cursor="hand2")
             self.game_label.bind("<Button-1>", lambda e: self.manual_locate_game())
@@ -318,7 +354,7 @@ class EldenRingTool:
             save_dir_status = "存档目录创建失败"
         
         # 更新UI
-        self.path_status_label.config(text="检测完成 (点击重新检测路径)", fg="gray")
+        # self.path_status_label.config(text="点击重新检测路径", fg="gray")
         self.update_path_labels()
         self.save_config()
         self.status(f"路径检测完成 - {save_dir_status}")
@@ -559,10 +595,6 @@ class EldenRingTool:
                 self.mod_installed_status.config(text=status_msg, fg="orange")
             else:
                 self.mod_installed_status.config(text="未安装", fg="red")
-            
-            # 清空配置显示
-            self.mod_password_label.config(text="-", fg="gray")
-            self.mod_debuff_label.config(text="-", fg="gray")
 
     def import_mod(self, source_dir, target_dir, file_tree, overwrite=False):
         """
@@ -770,8 +802,8 @@ class EldenRingTool:
         config_file_path = os.path.join(self.game_path, mod_config["config_file"])
         
         if not os.path.exists(config_file_path):
-            self.mod_password_label.config(text="无配置文件", fg="orange")
-            self.mod_debuff_label.config(text="无配置文件", fg="orange")
+            # 如果配置文件不存在，使用默认值
+            print(f"配置文件不存在: {config_file_path}")
             return
         
         try:
@@ -779,20 +811,23 @@ class EldenRingTool:
             config.read(config_file_path, encoding='utf-8')
             
             # 获取联机密码
-            password = config.get('settings', 'cooppassword', fallback='未设置')
-            self.mod_password_label.config(text=password, fg="green")
+            password = config.get('settings', 'cooppassword', fallback='4820')
+            # 更新密码输入框
+            if password.isdigit():
+                self.password_var.set(password)
             
             # 获取死亡惩罚
-            debuff = config.get('settings', 'death_debuffs', fallback='未设置')
-            self.mod_debuff_label.config(text=debuff, fg="green")
-            
-            # 更新输入框
-            if password != '未设置' and password.isdigit():
-                self.password_var.set(password)
+            debuff = config.get('settings', 'death_debuffs', fallback='1')
+            # 更新单选按钮状态
+            try:
+                debuff_value = int(debuff)
+                if debuff_value in [0, 1]:
+                    self.debuff_var.set(debuff_value)
+            except ValueError:
+                pass  # 保持默认值
                 
         except Exception as e:
-            self.mod_password_label.config(text=f"读取失败", fg="red")
-            self.mod_debuff_label.config(text=f"读取失败", fg="red")
+            print(f"读取MOD配置失败: {str(e)}")
 
     def update_password(self):
         """更新联机密码"""
@@ -814,8 +849,8 @@ class EldenRingTool:
             # 如果配置文件不存在，创建它
             if not os.path.exists(config_file):
                 config['settings'] = {}
-            
-            config.read(config_file, encoding='utf-8')
+            else:
+                config.read(config_file, encoding='utf-8')
             
             if not config.has_section('settings'):
                 config.add_section('settings')
@@ -825,8 +860,6 @@ class EldenRingTool:
             with open(config_file, 'w', encoding='utf-8') as f:
                 config.write(f)
             
-            # 更新显示
-            self.mod_password_label.config(text=new_password, fg="green")
             self.status(f"密码已更新为: {new_password}")
             
         except Exception as e:
@@ -847,8 +880,8 @@ class EldenRingTool:
             # 如果配置文件不存在，创建它
             if not os.path.exists(config_file):
                 config['settings'] = {}
-            
-            config.read(config_file, encoding='utf-8')
+            else:
+                config.read(config_file, encoding='utf-8')
             
             if not config.has_section('settings'):
                 config.add_section('settings')
@@ -858,8 +891,6 @@ class EldenRingTool:
             with open(config_file, 'w', encoding='utf-8') as f:
                 config.write(f)
             
-            # 更新显示
-            self.mod_debuff_label.config(text=str(value), fg="green")
             self.status(f"死亡惩罚已设置为: {value}")
             
         except Exception as e:
