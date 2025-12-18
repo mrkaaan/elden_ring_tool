@@ -66,9 +66,15 @@ class EldenRingTool:
             self.setup_ui()
 
         self.auto_detect_paths()
+        self.root.after(100, self.initial_mod_check)  # 延迟100ms执行
+
+    def initial_mod_check(self):
+        """初始检查MOD状态"""
+        self.check_mod_source_status()
+        self.check_mod_installed_status()
         
     def setup_ui(self):
-        self.root.geometry("350x430")
+        self.root.geometry("350x600")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
@@ -107,47 +113,72 @@ class EldenRingTool:
         # MOD管理区域
         mod_frame = tk.LabelFrame(self.root, text="MOD管理", padx=10, pady=5)
         mod_frame.pack(fill="x", padx=20, pady=3)
-        
-        self.mod_status_label = tk.Label(mod_frame, 
-                                        text="点击'获取MOD状态'按钮检测",
-                                        fg="gray")
-        self.mod_status_label.pack()
 
-        # 创建一个水平容器放第一行的两个按钮
-        top_buttons_frame = tk.Frame(mod_frame)
-        top_buttons_frame.pack(fill="x", pady=(0, 10))
+        # 使用网格布局，更整齐
+        mod_inner_frame = tk.Frame(mod_frame)
+        mod_inner_frame.pack(fill="x", padx=5, pady=5)
 
-        # 左边：导入MOD按钮
-        tk.Button(top_buttons_frame, text="导入MOD文件", command=self.import_mod,
-                width=20).pack(side="left", padx=5)
+        # 第1行：原MOD文件状态
+        tk.Label(mod_inner_frame, text="MOD源文件:", width=10, anchor="w").grid(row=0, column=0, sticky="w", pady=3)
+        self.mod_source_status = tk.Label(mod_inner_frame, text="未检测", fg="gray", cursor="hand2")
+        self.mod_source_status.grid(row=0, column=1, sticky="w", pady=3)
+        self.mod_source_status.bind("<Button-1>", lambda e: self.check_mod_source_status())
 
-        # 右边：MOD配置区域（现在只包含获取状态按钮）
-        config_frame = tk.Frame(top_buttons_frame)
-        config_frame.pack(side="left", padx=10)
+        # 第2行：目标目录MOD状态
+        tk.Label(mod_inner_frame, text="已安装MOD:", width=10, anchor="w").grid(row=1, column=0, sticky="w", pady=3)
+        self.mod_installed_status = tk.Label(mod_inner_frame, text="未检测", fg="gray", cursor="hand2")
+        self.mod_installed_status.grid(row=1, column=1, sticky="w", pady=3)
+        self.mod_installed_status.bind("<Button-1>", lambda e: self.check_mod_installed_status())
 
-        tk.Button(config_frame, text="获取MOD状态", 
-                command=self.check_mod_status).pack()
-        
-        # 联机密码设置
-        pass_frame = tk.Frame(mod_frame)
-        pass_frame.pack(fill="x", pady=3)
-        
-        tk.Label(pass_frame, text="联机密码:").pack(side="left")
+        # 第3行：联机密码
+        tk.Label(mod_inner_frame, text="联机密码:", width=10, anchor="w").grid(row=2, column=0, sticky="w", pady=3)
+        self.mod_password_label = tk.Label(mod_inner_frame, text="未设置", fg="gray")
+        self.mod_password_label.grid(row=2, column=1, sticky="w", pady=3)
+
+        # 第4行：死亡惩罚
+        tk.Label(mod_inner_frame, text="死亡惩罚:", width=10, anchor="w").grid(row=3, column=0, sticky="w", pady=3)
+        self.mod_debuff_label = tk.Label(mod_inner_frame, text="未设置", fg="gray")
+        self.mod_debuff_label.grid(row=3, column=1, sticky="w", pady=3)
+
+        # 操作区域
+        mod_ops_frame = tk.Frame(mod_frame)
+        mod_ops_frame.pack(fill="x", padx=5, pady=10)
+
+        # 导入MOD按钮
+        self.import_mod_btn = tk.Button(mod_ops_frame, text="导入MOD文件", 
+                                    command=self.import_mod_with_option, width=15)
+        self.import_mod_btn.pack(side="left", padx=5)
+
+        # 覆盖选项
+        self.overwrite_var = tk.BooleanVar(value=True)  # 默认勾选
+        self.overwrite_check = tk.Checkbutton(mod_ops_frame, text="直接覆盖不询问", 
+                                            variable=self.overwrite_var)
+        self.overwrite_check.pack(side="left", padx=5)
+
+        # 密码修改区域
+        mod_config_frame = tk.Frame(mod_frame)
+        mod_config_frame.pack(fill="x", padx=5, pady=5)
+
+        # 密码设置
+        pass_row = tk.Frame(mod_config_frame)
+        pass_row.pack(fill="x", pady=3)
+
+        tk.Label(pass_row, text="设置密码:", width=10, anchor="w").pack(side="left")
         self.password_var = tk.StringVar(value="4820")
-        tk.Entry(pass_frame, textvariable=self.password_var, 
+        tk.Entry(pass_row, textvariable=self.password_var, 
                 width=10).pack(side="left", padx=5)
-        tk.Button(pass_frame, text="修改密码", 
-                 command=self.update_password).pack(side="left", padx=5)
-        
+        tk.Button(pass_row, text="修改", 
+                command=self.update_password, width=6).pack(side="left")
+
         # death_debuffs设置
-        debuff_frame = tk.Frame(mod_frame)
-        debuff_frame.pack(fill="x", pady=3)
-        
-        tk.Label(debuff_frame, text="死亡惩罚:").pack(side="left")
-        tk.Button(debuff_frame, text="启用(1)", 
-                 command=lambda: self.set_debuff(1)).pack(side="left", padx=5)
-        tk.Button(debuff_frame, text="禁用(0)", 
-                 command=lambda: self.set_debuff(0)).pack(side="left")
+        debuff_row = tk.Frame(mod_config_frame)
+        debuff_row.pack(fill="x", pady=3)
+
+        tk.Label(debuff_row, text="死亡惩罚:", width=10, anchor="w").pack(side="left")
+        tk.Button(debuff_row, text="启用(1)", 
+                command=lambda: self.set_debuff(1), width=8).pack(side="left", padx=2)
+        tk.Button(debuff_row, text="禁用(0)", 
+                command=lambda: self.set_debuff(0), width=8).pack(side="left")
         
         # 存档管理区域
         save_frame = tk.LabelFrame(self.root, text="存档管理", padx=10, pady=5)
@@ -454,7 +485,7 @@ class EldenRingTool:
         except Exception as e:
             self.mod_status_label.config(text=f"读取配置失败: {str(e)}", fg="red")
     
-    def update_password(self):
+    def update_password_old(self):
         """更新联机密码"""
         if not self.mod_config_path:
             messagebox.showwarning("警告", "请先检测MOD状态")
@@ -483,7 +514,7 @@ class EldenRingTool:
         except Exception as e:
             messagebox.showerror("错误", f"更新密码失败:\n{str(e)}")
     
-    def set_debuff(self, value):
+    def set_debuff_old(self, value):
         """设置death_debuffs值"""
         if not self.mod_config_path:
             messagebox.showwarning("警告", "请先检测MOD状态")
@@ -503,6 +534,270 @@ class EldenRingTool:
             
             self.status(f"死亡惩罚已设置为: {value}")
             self.check_mod_status()  # 刷新显示
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"设置失败:\n{str(e)}")
+
+    def check_mod_source_status(self):
+        """检查MOD源文件状态"""
+        mods_dir = "mods"
+        
+        # 如果mods目录不存在，创建它
+        if not os.path.exists(mods_dir):
+            os.makedirs(mods_dir, exist_ok=True)
+            self.mod_source_status.config(text="mods目录已创建", fg="orange")
+            return
+        
+        # 查找MOD文件
+        mod_files = self.find_mod_files(mods_dir)
+        
+        if not mod_files:
+            self.mod_source_status.config(text="未找到MOD文件", fg="red")
+        else:
+            # 分析找到的文件
+            has_folder = any(os.path.isdir(f) and os.path.basename(f) == "SeamlessCoop" for f in mod_files)
+            has_exe = any(os.path.isfile(f) and os.path.basename(f) == "ersc_launcher.exe" for f in mod_files)
+            
+            if has_folder and has_exe:
+                self.mod_source_status.config(text="完整MOD文件 ✓", fg="green")
+            elif has_folder or has_exe:
+                status = "部分文件" + ("(有文件夹)" if has_folder else "(有执行文件)")
+                self.mod_source_status.config(text=status, fg="orange")
+            else:
+                # 可能是压缩包或其他文件
+                self.mod_source_status.config(text=f"找到{len(mod_files)}个文件", fg="blue")
+
+    def check_mod_installed_status(self):
+        """检查已安装的MOD状态"""
+        if not os.path.exists(self.game_path):
+            self.mod_installed_status.config(text="游戏路径未找到", fg="red")
+            return
+        
+        # 检查关键文件
+        coop_folder = os.path.join(self.game_path, "SeamlessCoop")
+        coop_exe = os.path.join(self.game_path, "ersc_launcher.exe")
+        
+        has_folder = os.path.exists(coop_folder)
+        has_exe = os.path.exists(coop_exe)
+        
+        if has_folder and has_exe:
+            self.mod_installed_status.config(text="已安装 ✓", fg="green")
+            # 检查配置文件
+            config_file = os.path.join(coop_folder, "ersc_settings.ini")
+            if os.path.exists(config_file):
+                self.load_mod_config(config_file)
+            else:
+                self.mod_password_label.config(text="无配置文件", fg="orange")
+                self.mod_debuff_label.config(text="无配置文件", fg="orange")
+        elif has_folder or has_exe:
+            status = "部分安装" + ("(有文件夹)" if has_folder else "(有执行文件)")
+            self.mod_installed_status.config(text=status, fg="orange")
+            self.mod_password_label.config(text="-", fg="gray")
+            self.mod_debuff_label.config(text="-", fg="gray")
+        else:
+            self.mod_installed_status.config(text="未安装", fg="red")
+            self.mod_password_label.config(text="-", fg="gray")
+            self.mod_debuff_label.config(text="-", fg="gray")
+
+    def find_mod_files(self, directory):
+        """在目录中查找MOD相关文件"""
+        mod_files = []
+        
+        for item in os.listdir(directory):
+            item_path = os.path.join(directory, item)
+            
+            # 检查是否是MOD相关文件
+            if os.path.isdir(item_path) and item == "SeamlessCoop":
+                mod_files.append(item_path)
+            elif os.path.isfile(item_path) and item == "ersc_launcher.exe":
+                mod_files.append(item_path)
+            elif os.path.isfile(item_path) and item.lower().endswith(('.zip', '.rar', '.7z')):
+                mod_files.append(item_path)
+            # 如果目录包含SeamlessCoop或ersc_launcher.exe，也添加到列表
+            elif os.path.isdir(item_path):
+                sub_files = self.find_mod_files(item_path)
+                if sub_files:
+                    mod_files.extend(sub_files)
+        
+        return mod_files
+
+    def import_mod_with_option(self):
+        """带选项的导入MOD功能"""
+        # 检查游戏路径
+        if not os.path.exists(self.game_path):
+            messagebox.showerror("错误", "请先找到游戏路径！")
+            return
+        
+        # 选择MOD文件
+        file_path = filedialog.askopenfilename(
+            title="选择MOD文件",
+            filetypes=[("所有文件", "*.*"), ("ZIP文件", "*.zip"), 
+                    ("RAR文件", "*.rar"), ("7Z文件", "*.7z")]
+        )
+        
+        if not file_path:
+            return
+        
+        # 检查目标目录是否已有MOD文件
+        coop_folder = os.path.join(self.game_path, "SeamlessCoop")
+        coop_exe = os.path.join(self.game_path, "ersc_launcher.exe")
+        
+        has_existing = os.path.exists(coop_folder) or os.path.exists(coop_exe)
+        
+        # 如果存在已有文件且未勾选"直接覆盖"，则询问
+        if has_existing and not self.overwrite_var.get():
+            response = messagebox.askyesnocancel("覆盖确认", 
+                f"目标目录已存在MOD文件。\n是否覆盖？\n\n" +
+                f"点击'是'覆盖，'否'取消操作")
+            
+            if not response:  # 用户点击"否"或"取消"
+                return
+        
+        # 导入MOD
+        try:
+            self.import_mod_file(file_path)
+            messagebox.showinfo("成功", "MOD导入完成！")
+            # 更新状态
+            self.check_mod_installed_status()
+        except Exception as e:
+            messagebox.showerror("错误", f"导入失败:\n{str(e)}")
+
+    def import_mod_file(self, file_path):
+        """导入MOD文件的核心函数"""
+        temp_dir = "temp_mod_extract"
+        
+        # 清理临时目录
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        
+        os.makedirs(temp_dir)
+        
+        try:
+            # 处理压缩包
+            if file_path.lower().endswith('.zip'):
+                with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                    zip_ref.extractall(temp_dir)
+                source_dir = temp_dir
+            else:
+                # 假设是文件夹或直接文件
+                source_dir = file_path
+            
+            # 查找MOD文件
+            found_files = []
+            for root, dirs, files in os.walk(source_dir):
+                # 查找SeamlessCoop文件夹
+                if "SeamlessCoop" in dirs:
+                    src = os.path.join(root, "SeamlessCoop")
+                    dst = os.path.join(self.game_path, "SeamlessCoop")
+                    if os.path.exists(dst):
+                        shutil.rmtree(dst)
+                    shutil.copytree(src, dst)
+                    found_files.append("SeamlessCoop")
+                
+                # 查找ersc_launcher.exe
+                if "ersc_launcher.exe" in files:
+                    src = os.path.join(root, "ersc_launcher.exe")
+                    dst = os.path.join(self.game_path, "ersc_launcher.exe")
+                    shutil.copy2(src, dst)
+                    found_files.append("ersc_launcher.exe")
+            
+            if not found_files:
+                raise Exception("未找到有效的MOD文件")
+                
+        finally:
+            # 清理临时目录
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+
+    def load_mod_config(self, config_file):
+        """加载MOD配置文件"""
+        try:
+            config = configparser.ConfigParser()
+            config.read(config_file, encoding='utf-8')
+            
+            # 获取联机密码
+            password = config.get('settings', 'cooppassword', fallback='未设置')
+            self.mod_password_label.config(text=password, fg="green")
+            
+            # 获取死亡惩罚
+            debuff = config.get('settings', 'death_debuffs', fallback='未设置')
+            self.mod_debuff_label.config(text=debuff, fg="green")
+            
+            # 更新输入框
+            if password != '未设置' and password.isdigit():
+                self.password_var.set(password)
+                
+        except Exception as e:
+            self.mod_password_label.config(text=f"读取失败", fg="red")
+            self.mod_debuff_label.config(text=f"读取失败", fg="red")
+
+    def update_password(self):
+        """更新联机密码"""
+        # 检查是否已安装MOD
+        coop_folder = os.path.join(self.game_path, "SeamlessCoop")
+        if not os.path.exists(coop_folder):
+            messagebox.showwarning("警告", "请先导入MOD文件")
+            return
+        
+        config_file = os.path.join(coop_folder, "ersc_settings.ini")
+        
+        new_password = self.password_var.get().strip()
+        if not new_password.isdigit() or len(new_password) != 4:
+            messagebox.showwarning("警告", "请输入4位数字密码")
+            return
+        
+        try:
+            config = configparser.ConfigParser()
+            # 如果配置文件不存在，创建它
+            if not os.path.exists(config_file):
+                config['settings'] = {}
+            
+            config.read(config_file, encoding='utf-8')
+            
+            if not config.has_section('settings'):
+                config.add_section('settings')
+            
+            config.set('settings', 'cooppassword', new_password)
+            
+            with open(config_file, 'w', encoding='utf-8') as f:
+                config.write(f)
+            
+            # 更新显示
+            self.mod_password_label.config(text=new_password, fg="green")
+            self.status(f"密码已更新为: {new_password}")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"更新密码失败:\n{str(e)}")
+
+    def set_debuff(self, value):
+        """设置death_debuffs值"""
+        # 检查是否已安装MOD
+        coop_folder = os.path.join(self.game_path, "SeamlessCoop")
+        if not os.path.exists(coop_folder):
+            messagebox.showwarning("警告", "请先导入MOD文件")
+            return
+        
+        config_file = os.path.join(coop_folder, "ersc_settings.ini")
+        
+        try:
+            config = configparser.ConfigParser()
+            # 如果配置文件不存在，创建它
+            if not os.path.exists(config_file):
+                config['settings'] = {}
+            
+            config.read(config_file, encoding='utf-8')
+            
+            if not config.has_section('settings'):
+                config.add_section('settings')
+            
+            config.set('settings', 'death_debuffs', str(value))
+            
+            with open(config_file, 'w', encoding='utf-8') as f:
+                config.write(f)
+            
+            # 更新显示
+            self.mod_debuff_label.config(text=str(value), fg="green")
+            self.status(f"死亡惩罚已设置为: {value}")
             
         except Exception as e:
             messagebox.showerror("错误", f"设置失败:\n{str(e)}")
