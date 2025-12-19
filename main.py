@@ -67,7 +67,9 @@ class EldenRingTool:
 
         self.auto_detect_paths()
         self.ensure_mod_config() # 确保MOD配置存在
+        self.ensure_save_directories() # 确保存档目录存在
         self.root.after(100, self.initial_mod_check)  # 延迟100ms执行
+        self.root.after(200, self.initial_save_check)  # 延迟200ms执行
 
     #region 程序的确认和运行
     def initial_mod_check(self):
@@ -83,7 +85,7 @@ class EldenRingTool:
     #region 界面构建相关函数
     def setup_ui(self):
         """设置UI界面"""
-        self.root.geometry("300x500")
+        self.root.geometry("300x550")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
@@ -173,7 +175,7 @@ class EldenRingTool:
 
         # 配置区域 - 放在导入按钮下方
         config_frame = tk.Frame(ops_frame)
-        config_frame.pack(fill="x", pady=(0, 5))
+        config_frame.pack(fill="x", pady=(0, 0))
 
         # 密码设置行
         pass_row = tk.Frame(config_frame)
@@ -226,15 +228,67 @@ class EldenRingTool:
         # 存档管理区域
         save_frame = tk.LabelFrame(self.root, text="存档管理", padx=10, pady=10)
         save_frame.pack(fill="x", padx=15, pady=2)
-        
+
+        # 使用网格布局，更紧凑
+        save_inner_frame = tk.Frame(save_frame)
+        save_inner_frame.pack(fill="x", padx=5, pady=5)
+
+        # 第1行：选择存档标签和下拉框
+        save_row1 = tk.Frame(save_inner_frame)
+        save_row1.pack(fill="x", pady=(0, 5))
+
+        tk.Label(save_row1, text="选择存档:", width=10, anchor="w").pack(side="left")
+
+        # 存档下拉框
+        self.save_combo_var = tk.StringVar()
+        self.save_combo = ttk.Combobox(save_row1, 
+                                    textvariable=self.save_combo_var,
+                                    state="readonly", width=30)
+        self.save_combo.pack(side="left", padx=5)
+        self.save_combo.bind("<<ComboboxSelected>>", lambda e: self.on_save_selected())
+
+        # 第2行：状态标签（左）和刷新按钮（右）两端对齐
+        save_row2 = tk.Frame(save_inner_frame)
+        save_row2.pack(fill="x", pady=(0, 10))
+
+        # 状态标签放在左侧
+        self.save_status_label = tk.Label(save_row2, 
+                                        text="未选择存档", fg="gray", 
+                                        font=("Arial", 9))
+        self.save_status_label.pack(side="left")
+
+        # 中间的空Frame用于占据剩余空间，实现两端对齐
+        tk.Frame(save_row2).pack(side="left", expand=True, fill="x")
+
+        # 刷新链接放在右侧
+        self.refresh_save_link = tk.Label(save_row2, 
+                                        text="刷新",
+                                        fg="gray", cursor="hand2", font=("Arial", 9))
+        self.refresh_save_link.pack(side="left")
+        self.refresh_save_link.bind("<Button-1>", lambda e: self.refresh_save_list())
+        self.refresh_save_link.bind("<Enter>", 
+                                lambda e: self.refresh_save_link.config(fg="blue"))
+        self.refresh_save_link.bind("<Leave>", 
+                                lambda e: self.refresh_save_link.config(fg="gray"))
+
+        # 第3行：导入存档、复选框、导出存档（在同一行）
+        save_row3 = tk.Frame(save_inner_frame)
+        save_row3.pack(fill="x")
+
         # 导入存档按钮
-        tk.Button(save_frame, text="导入存档", command=None,
-                 width=15).pack(side="left", padx=5)
-        
+        tk.Button(save_row3, text="导入存档", 
+                command=self.import_selected_save, width=10).pack(side="left", padx=(0, 5))
+
+        # 直接覆盖复选框 - 紧挨着导入按钮
+        self.import_overwrite_var = tk.BooleanVar(value=True)
+        import_overwrite_check = tk.Checkbutton(save_row3, text="直接覆盖",
+                                            variable=self.import_overwrite_var)
+        import_overwrite_check.pack(side="left", padx=(0, 15))
+
         # 导出存档按钮
-        tk.Button(save_frame, text="导出存档", command=self.export_save,
-                 width=15).pack(side="left", padx=5)
-        
+        tk.Button(save_row3, text="导出存档", 
+                command=self.export_current_save, width=10).pack(side="left")
+
         # 状态栏
         self.status_bar = tk.Label(self.root, text="就绪", bd=1, 
                                   relief=tk.SUNKEN, anchor=tk.W)
@@ -314,7 +368,13 @@ class EldenRingTool:
         
         # 存档路径
         if os.path.exists(self.save_path):
-            self.save_label.config(text="存档路径 ✓", fg="green", cursor="hand2")
+            # 检查存档状态
+            has_save, save_info = self.check_save_exists(self.save_path)
+            if has_save:
+                self.save_label.config(text=f"存档路径 ✓ (有存档)", fg="green", cursor="hand2")
+            else:
+                self.save_label.config(text="存档路径 ✓ (无存档)", fg="orange", cursor="hand2")
+            
             if hasattr(self.save_label, 'tooltip'):
                 self.save_label.tooltip = None
             self.save_label.tooltip = ToolTip(self.save_label, self.save_path)
@@ -417,6 +477,34 @@ class EldenRingTool:
             self.config["save_path"] = self.save_path
             self.update_path_labels()
             self.save_config()
+
+    def check_save_exists(self, save_dir):
+        """检查存档目录是否有有效存档"""
+        if not os.path.exists(save_dir):
+            return False, "目录不存在"
+        
+        # 检查是否有任何SteamID文件夹（17位数字）
+        steam_id_folders = []
+        for item in os.listdir(save_dir):
+            item_path = os.path.join(save_dir, item)
+            if os.path.isdir(item_path) and item.isdigit() and len(item) == 17:
+                # 检查文件夹内是否有ER开头的文件
+                try:
+                    files = os.listdir(item_path)
+                    if any(f.startswith('ER') for f in files):
+                        steam_id_folders.append(item)
+                except (PermissionError, OSError):
+                    continue
+        
+        if steam_id_folders:
+            return True, f"{len(steam_id_folders)}个存档"
+        else:
+            # 检查是否有任何存档文件（直接放在目录下的ER文件）
+            er_files = [f for f in os.listdir(save_dir) if f.startswith('ER')]
+            if er_files:
+                return True, f"{len(er_files)}个ER文件"
+            else:
+                return False, "无存档"
     #endregion
 
     #region mod文件相关函数
@@ -749,50 +837,419 @@ class EldenRingTool:
     #endregion
 
     #region 存档文件相关函数
-    def export_save(self):
-        """导出存档"""
+    def refresh_save_list(self):
+        """刷新存档列表"""
+        saves_dir = "saves"
+        
+        # 如果存档目录不存在，创建它
+        if not os.path.exists(saves_dir):
+            os.makedirs(saves_dir, exist_ok=True)
+            self.save_combo['values'] = []
+            self.save_combo_var.set("")  # 置空选中内容
+            self.save_status_label.config(text="存档目录已创建", fg="orange")
+            return
+        
+        # 获取所有存档文件夹
+        save_folders = []
+        for item in os.listdir(saves_dir):
+            item_path = os.path.join(saves_dir, item)
+            if os.path.isdir(item_path):
+                save_folders.append(item)
+        
+        # 按修改时间排序（最新的在前面）
+        save_folders.sort(key=lambda x: os.path.getmtime(os.path.join(saves_dir, x)), reverse=True)
+        
+        if save_folders:
+            self.save_combo['values'] = save_folders
+            self.save_combo_var.set("")  # 刷新后置空选中内容
+            self.save_status_label.config(text=f"找到{len(save_folders)}个存档", fg="green")
+        else:
+            self.save_combo['values'] = []
+            self.save_combo_var.set("")  # 置空选中内容
+            self.save_status_label.config(text="无可用存档", fg="gray")
+
+    def on_save_selected(self):
+        """当选择存档时的处理"""
+        selected = self.save_combo_var.get()
+        
+        if not selected:
+            self.save_status_label.config(text="未选择存档", fg="gray")
+            return
+        
+        saves_dir = "saves"
+        selected_path = os.path.join(saves_dir, selected)
+        
+        # 检查存档是否合法
+        is_valid, status_msg, details = self.check_save_validity(selected_path)
+        
+        if is_valid:
+            self.save_status_label.config(text=f"存档合法", fg="green")
+        else:
+            self.save_status_label.config(text=f"存档异常: {status_msg}", fg="red")
+
+    def check_save_validity(self, save_path):
+        """
+        检查存档的合法性
+        
+        Args:
+            save_path: 存档文件夹路径
+        
+        Returns:
+            tuple: (is_valid, status_message, details)
+        """
+        if not os.path.exists(save_path):
+            return False, "存档文件夹不存在", ""
+        
+        # 检查存档文件夹结构
+        eldenring_path = os.path.join(save_path, "EldenRing")
+        
+        # 两种情况：有EldenRing文件夹或直接是存档文件
+        if os.path.exists(eldenring_path):
+            # 情况1：有EldenRing文件夹
+            return self._check_eldenring_folder(eldenring_path)
+        else:
+            # 情况2：直接是存档文件
+            return self._check_direct_save_files(save_path)
+
+    def _check_eldenring_folder(self, eldenring_path):
+        """检查EldenRing文件夹结构"""
+        if not os.path.exists(eldenring_path):
+            return False, "EldenRing文件夹不存在", ""
+        
+        # 查找SteamID文件夹（17位数字）
+        steam_id_found = False
+        steam_id_folders = []
+        
+        for item in os.listdir(eldenring_path):
+            item_path = os.path.join(eldenring_path, item)
+            if os.path.isdir(item_path):
+                # 检查是否是17位数字文件夹
+                if item.isdigit() and len(item) == 17:
+                    steam_id_found = True
+                    steam_id_folders.append(item)
+                    
+                    # 检查文件夹内是否有ER开头的文件
+                    has_er_files = any(f.startswith('ER') for f in os.listdir(item_path))
+                    if not has_er_files:
+                        return False, f"SteamID文件夹{item}内无ER文件", ""
+        
+        if not steam_id_found:
+            return False, "未找到SteamID文件夹", ""
+        
+        # 检查GraphicsConfig.xml（可选）
+        graphics_config = os.path.join(eldenring_path, "GraphicsConfig.xml")
+        
+        details = f"{len(steam_id_folders)}个SteamID文件夹"
+        return True, "存档合法", details
+
+    def _check_direct_save_files(self, save_path):
+        """检查直接存档文件结构"""
+        # 查找SteamID文件夹（17位数字）
+        steam_id_found = False
+        steam_id_folders = []
+        
+        for item in os.listdir(save_path):
+            item_path = os.path.join(save_path, item)
+            if os.path.isdir(item_path):
+                # 检查是否是17位数字文件夹
+                if item.isdigit() and len(item) == 17:
+                    steam_id_found = True
+                    steam_id_folders.append(item)
+                    
+                    # 检查文件夹内是否有ER开头的文件
+                    has_er_files = any(f.startswith('ER') for f in os.listdir(item_path))
+                    if not has_er_files:
+                        return False, f"SteamID文件夹{item}内无ER文件", ""
+        
+        if not steam_id_found:
+            return False, "未找到SteamID文件夹", ""
+        
+        details = f"{len(steam_id_folders)}个SteamID文件夹"
+        return True, "存档合法", details
+
+    def backup_current_save(self):
+        """备份当前存档"""
         if not os.path.exists(self.save_path):
-            messagebox.showwarning("警告", "未找到存档目录")
+            return False, "存档目录不存在"
+        
+        # 检查目录是否为空或有内容
+        try:
+            items = os.listdir(self.save_path)
+            if not items:
+                return False, "存档目录为空，无需备份"
+            
+            # 检查是否有任何有效内容
+            has_content = False
+            for item in items:
+                item_path = os.path.join(self.save_path, item)
+                if os.path.isdir(item_path):
+                    if os.listdir(item_path):
+                        has_content = True
+                        break
+                elif os.path.getsize(item_path) > 0:
+                    has_content = True
+                    break
+            
+            if not has_content:
+                return False, "存档目录无有效内容，无需备份"
+        except (OSError, PermissionError) as e:
+            return False, f"检查存档目录失败: {str(e)}"
+        
+        try:
+            # 创建备份目录
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_dir_name = f"{timestamp}_auto_backup"
+            backup_dir = os.path.join("saves", backup_dir_name)
+            
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
+            
+            # 复制整个EldenRing文件夹
+            backup_target = os.path.join(backup_dir, "EldenRing")
+            
+            # 如果备份目标已存在，先删除
+            if os.path.exists(backup_target):
+                success, message = self.delete_save_directory(backup_target, force=True)
+                if not success:
+                    # 如果删除失败，尝试创建新的备份目录名
+                    backup_dir_name = f"{timestamp}_auto_backup_2"
+                    backup_dir = os.path.join("saves", backup_dir_name)
+                    os.makedirs(backup_dir, exist_ok=True)
+                    backup_target = os.path.join(backup_dir, "EldenRing")
+            
+            shutil.copytree(self.save_path, backup_target)
+            
+            # 刷新存档列表
+            self.refresh_save_list()
+            
+            return True, f"自动备份成功: {backup_dir_name}"
+            
+        except Exception as e:
+            return False, f"备份失败: {str(e)}"
+
+    def import_selected_save(self):
+        """导入选中的存档"""
+        selected = self.save_combo_var.get()
+        if not selected:
+            messagebox.showwarning("警告", "请先选择存档")
+            return
+        
+        saves_dir = "saves"
+        selected_path = os.path.join(saves_dir, selected)
+        
+        # 检查存档合法性
+        is_valid, status_msg, details = self.check_save_validity(selected_path)
+        if not is_valid:
+            messagebox.showwarning("警告", f"存档不合法: {status_msg}")
+            return
+        
+        # 检查游戏是否正在运行
+        try:
+            import psutil
+            game_running = False
+            for proc in psutil.process_iter(['name']):
+                if proc.info['name']:
+                    proc_name = proc.info['name'].lower()
+                    if proc_name in ['eldenring.exe', 'ersc_launcher.exe']:
+                        game_running = True
+                        break
+            
+            if game_running:
+                response = messagebox.askyesno("游戏正在运行",
+                    "检测到游戏正在运行。\n\n"
+                    "导入存档需要关闭游戏以避免文件占用问题。\n\n"
+                    "是否继续？（强烈建议先关闭游戏）")
+                if not response:
+                    return
+        except ImportError:
+            # 如果没有psutil库，提示用户手动检查
+            response = messagebox.askyesno("提示",
+                "无法自动检测游戏状态。\n\n"
+                "导入存档前请确保艾尔登法环游戏已完全关闭。\n\n"
+                "游戏是否已关闭？")
+            if not response:
+                return
+        except Exception as e:
+            print(f"游戏检测异常: {e}")
+            # 检测失败时仍然提示
+            response = messagebox.askyesno("提示",
+                "游戏状态检测失败。\n\n"
+                "导入存档前请确保艾尔登法环游戏已完全关闭。\n\n"
+                "游戏是否已关闭？")
+            if not response:
+                return
+        
+        # 检查游戏存档目录是否存在
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path, exist_ok=True)
+        
+        # 检查当前存档目录是否非空
+        current_save_has_content = False
+        if os.path.exists(self.save_path):
+            # 检查目录下是否有任何文件或文件夹
+            try:
+                current_save_has_content = any(
+                    os.path.getsize(os.path.join(self.save_path, f)) > 0 or 
+                    os.path.isdir(os.path.join(self.save_path, f))
+                    for f in os.listdir(self.save_path)
+                )
+            except (OSError, PermissionError):
+                current_save_has_content = bool(os.listdir(self.save_path))
+        
+        # 如果已有存档内容且未选择直接覆盖，则询问
+        if current_save_has_content and not self.import_overwrite_var.get():
+            response = messagebox.askyesnocancel("确认", 
+                f"目标存档目录已有文件。\n是否先备份当前存档再导入？\n\n"
+                f"点击'是'备份并导入\n点击'否'直接覆盖\n点击'取消'取消操作")
+            
+            if response is None:  # 取消
+                return
+            elif response:  # 是，先备份
+                success, msg = self.backup_current_save()
+                if not success:
+                    messagebox.showwarning("警告", f"备份失败: {msg}")
+                    return
+        
+        # 如果直接覆盖被选中且当前存档有内容，则自动备份
+        if self.import_overwrite_var.get() and current_save_has_content:
+            success, msg = self.backup_current_save()
+            if not success:
+                messagebox.showwarning("警告", f"自动备份失败: {msg}")
+                # 询问是否继续
+                if not messagebox.askyesno("警告", "自动备份失败，是否继续导入？"):
+                    return
+        
+        # 导入存档
+        try:
+            print(f"正在导入存档: {selected}  1")
+            
+            # 确定源路径
+            eldenring_source = os.path.join(selected_path, "EldenRing")
+            if os.path.exists(eldenring_source):
+                # 情况1：有EldenRing文件夹
+                source_path = eldenring_source
+            else:
+                # 情况2：直接是存档文件
+                source_path = selected_path
+            print(f"正在导入存档: {selected}  2")
+            
+            # 清除目标目录 - 使用封装的函数
+            print(f"开始清除目标目录: {self.save_path}")
+            success, message = self.delete_save_directory(self.save_path, force=True)
+            if not success:
+                # 如果删除失败，询问用户是否继续
+                response = messagebox.askyesno("删除失败",
+                    f"清理目标目录失败: {message}\n\n"
+                    f"是否尝试继续导入？（可能会导致文件冲突）")
+                if not response:
+                    return
+            print(f"正在导入存档: {selected}  3")
+            
+            # 复制存档文件
+            for item in os.listdir(source_path):
+                src = os.path.join(source_path, item)
+                dst = os.path.join(self.save_path, item)
+                
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+            
+            # 刷新存档列表
+            self.refresh_save_list()
+            
+            # 更新存档路径显示
+            self.update_path_labels()
+            
+            messagebox.showinfo("成功", "存档导入完成！")
+            self.status("存档导入完成")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"导入失败:\n{str(e)}")
+            self.status(f"导入失败: {str(e)}")
+
+    def export_current_save(self):
+        """导出当前存档"""
+        if not os.path.exists(self.save_path) or not os.listdir(self.save_path):
+            messagebox.showwarning("警告", "当前无存档可导出")
             return
         
         # 选择保存位置
-        save_dir = filedialog.askdirectory(title="选择保存位置")
+        save_dir = filedialog.askdirectory(title="选择保存位置", initialdir="saves")
         if not save_dir:
             return
         
-        # 创建备份文件夹
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_folder = f"{timestamp}_存档备份"
-        backup_path = os.path.join(save_dir, backup_folder)
-        
-        if not os.path.exists(backup_path):
-            os.makedirs(backup_path)
-        
-        self.status("正在导出存档...")
-        
         try:
-            # 复制存档
-            dest_save = os.path.join(backup_path, "EldenRing")
-            if os.path.exists(dest_save):
-                shutil.rmtree(dest_save)
+            # 创建导出目录
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_dir_name = f"{timestamp}_manual_backup"
+            export_dir = os.path.join(save_dir, export_dir_name)
             
-            shutil.copytree(self.save_path, dest_save)
+            if not os.path.exists(export_dir):
+                os.makedirs(export_dir)
             
-            # 创建ZIP文件
-            zip_filename = os.path.join(save_dir, f"{backup_folder}.zip")
-            with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, dirs, files in os.walk(dest_save):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, dest_save)
-                        zipf.write(file_path, arcname)
+            # 创建EldenRing文件夹
+            export_target = os.path.join(export_dir, "EldenRing")
+            if os.path.exists(export_target):
+                shutil.rmtree(export_target)
             
-            self.status(f"存档已导出到: {zip_filename}")
-            messagebox.showinfo("成功", f"存档已导出到:\n{zip_filename}")
+            os.makedirs(export_target)
+            
+            # 复制所有文件到EldenRing文件夹内
+            for item in os.listdir(self.save_path):
+                src = os.path.join(self.save_path, item)
+                dst = os.path.join(export_target, item)
+                
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+            
+            # 如果保存位置是saves目录，则刷新列表
+            if os.path.abspath(save_dir) == os.path.abspath("saves"):
+                self.refresh_save_list()
+            
+            messagebox.showinfo("成功", f"存档已导出到:\n{export_dir}")
+            self.status(f"存档已导出: {export_dir_name}")
             
         except Exception as e:
-            self.status(f"导出失败: {str(e)}")
             messagebox.showerror("错误", f"导出失败:\n{str(e)}")
+            self.status(f"导出失败: {str(e)}")
+
+    def _auto_backup_current_save(self):
+        """自动备份当前存档（在导入前调用）"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_dir_name = f"{timestamp}_auto_backup"
+            backup_dir = os.path.join("saves", backup_dir_name)
+            
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
+            
+            backup_target = os.path.join(backup_dir, "EldenRing")
+            if os.path.exists(backup_target):
+                shutil.rmtree(backup_target)
+            
+            shutil.copytree(self.save_path, backup_target)
+            
+            return True, backup_dir_name
+        except Exception as e:
+            return False, str(e)
+        
+    def ensure_save_directories(self):
+        """确保存档相关目录存在"""
+        # 确保saves目录存在
+        if not os.path.exists("saves"):
+            os.makedirs("saves", exist_ok=True)
+        
+        # 确保游戏存档目录存在
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path, exist_ok=True)
+    
+    def initial_save_check(self):
+        """初始检查存档状态"""
+        self.refresh_save_list()
+    
     #endregion
 
     #region 编辑mod文件相关函数
@@ -926,6 +1383,62 @@ class EldenRingTool:
             
         except Exception as e:
             messagebox.showerror("错误", f"设置失败:\n{str(e)}")
+
+    def delete_save_directory(self, target_path, force=False):
+        """
+        删除存档目录中的所有内容
+        
+        Args:
+            target_path: 要清理的目标路径
+            force: 是否强制删除（即使文件被占用）
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if not os.path.exists(target_path):
+            return True, "目录不存在"
+        
+        try:
+            import stat
+            
+            def handle_remove_error(func, path, exc_info):
+                """处理删除错误"""
+                print(f"删除错误: {path}, 错误: {exc_info[1]}")
+                
+                if force:
+                    # 强制删除：更改文件权限
+                    try:
+                        os.chmod(path, stat.S_IWRITE)
+                        func(path)
+                    except Exception as e:
+                        print(f"强制删除失败: {e}")
+                        raise e
+                else:
+                    raise exc_info[1]  # 不强制删除则抛出异常
+            
+            # 删除目录中的所有内容
+            for item in os.listdir(target_path):
+                item_path = os.path.join(target_path, item)
+                
+                try:
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path, onerror=handle_remove_error)
+                    else:
+                        try:
+                            os.remove(item_path)
+                        except PermissionError:
+                            if force:
+                                os.chmod(item_path, stat.S_IWRITE)
+                                os.remove(item_path)
+                            else:
+                                raise
+                except Exception as e:
+                    return False, f"删除失败 {item}: {str(e)}"
+            
+            return True, "删除成功"
+            
+        except Exception as e:
+            return False, f"删除过程中发生错误: {str(e)}"
     #endregion
 
 
