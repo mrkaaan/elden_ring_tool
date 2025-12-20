@@ -70,6 +70,7 @@ class EldenRingTool:
         self.ensure_save_directories() # 确保存档目录存在
         self.root.after(100, self.initial_mod_check)  # 延迟100ms执行
         self.root.after(200, self.initial_save_check)  # 延迟200ms执行
+        self.root.after(300, self.initial_launch_check)  # 延迟300ms执行
 
     #region 程序的确认和运行
     def initial_mod_check(self):
@@ -85,7 +86,7 @@ class EldenRingTool:
     #region 界面构建相关函数
     def setup_ui(self):
         """设置UI界面"""
-        self.root.geometry("300x550")
+        self.root.geometry("300x650")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
@@ -288,6 +289,40 @@ class EldenRingTool:
         # 导出存档按钮
         tk.Button(save_row3, text="导出存档", 
                 command=self.export_current_save, width=10).pack(side="left")
+
+        # 启动游戏区域 - 放在主界面最底部
+        launch_frame = tk.LabelFrame(self.root, text="启动游戏", padx=10, pady=10)
+        launch_frame.pack(fill="x", padx=15, pady=(2, 5))
+
+        # 启动游戏按钮（居中）
+        self.launch_btn = tk.Button(launch_frame, text="启动游戏", 
+                                command=self.launch_game, 
+                                state="disabled", width=20)
+        self.launch_btn.pack(pady=(0, 5))
+
+        # 刷新按钮和状态标签（在同一行，刷新靠右）
+        launch_status_frame = tk.Frame(launch_frame)
+        launch_status_frame.pack(fill="x")
+
+        # 状态标签（左）
+        self.launch_status_label = tk.Label(launch_status_frame, 
+                                            text="MOD未安装",
+                                            fg="gray", font=("Arial", 9))
+        self.launch_status_label.pack(side="left")
+
+        # 中间的空Frame用于占据剩余空间
+        tk.Frame(launch_status_frame).pack(side="left", expand=True, fill="x")
+
+        # 刷新链接（右）
+        self.refresh_launch_link = tk.Label(launch_status_frame, 
+                                            text="刷新状态",
+                                            fg="gray", cursor="hand2", font=("Arial", 9))
+        self.refresh_launch_link.pack(side="right")
+        self.refresh_launch_link.bind("<Button-1>", lambda e: self.refresh_launch_status())
+        self.refresh_launch_link.bind("<Enter>", 
+                                    lambda e: self.refresh_launch_link.config(fg="blue"))
+        self.refresh_launch_link.bind("<Leave>", 
+                                    lambda e: self.refresh_launch_link.config(fg="gray"))
 
         # 状态栏
         self.status_bar = tk.Label(self.root, text="就绪", bd=1, 
@@ -669,20 +704,30 @@ class EldenRingTool:
         """检查已安装的无缝联机MOD状态"""
         if not os.path.exists(self.game_path):
             self.mod_installed_status.config(text="游戏路径未找到", fg="red")
+            self.update_launch_button_status()
             return
         
-        # 检查游戏目录中的MOD结构
+        # 检查MOD结构
         is_valid, status_msg, details = self.check_seamless_coop_structure(self.game_path)
         
         if is_valid:
-            self.mod_installed_status.config(text="已安装 ✓ (点击刷新)", fg="green")
+            self.mod_installed_status.config(text="已安装 ✓", fg="green")
             # 加载配置
             self.load_seamless_coop_config()
+            # 更新启动按钮状态
+            self.update_launch_button_status()
         else:
             if details["total_found"] > 0:
                 self.mod_installed_status.config(text=status_msg, fg="orange")
             else:
                 self.mod_installed_status.config(text="未安装", fg="red")
+            
+            # 清空配置显示 - 这里需要清空密码输入框和死亡惩罚单选按钮
+            self.password_var.set("")
+            self.debuff_var.set(-1)  # 设置为无效值
+            
+            # 更新启动按钮状态
+            self.update_launch_button_status()
 
     def import_mod(self, source_dir, target_dir, file_tree, overwrite=False):
         """
@@ -821,6 +866,8 @@ class EldenRingTool:
                 messagebox.showinfo("成功", f"导入完成！\n导入项目: {len(imported_items)}个")
                 # 更新状态
                 self.check_seamless_coop_installed_status()
+                # 更新启动按钮状态
+                self.update_launch_button_status()
                 return True
             else:
                 messagebox.showwarning("警告", "没有文件被导入")
@@ -1250,6 +1297,10 @@ class EldenRingTool:
         """初始检查存档状态"""
         self.refresh_save_list()
     
+    def initial_launch_check(self):
+        """初始检查启动状态"""
+        self.refresh_launch_status()
+    
     #endregion
 
     #region 编辑mod文件相关函数
@@ -1261,7 +1312,7 @@ class EldenRingTool:
         if not os.path.exists(config_file_path):
             # 如果配置文件不存在，清空显示
             self.password_var.set("")
-            self.debuff_var.set(-1)  # 设置为无效值，使单选按钮都不选中
+            self.debuff_var.set(-1)
             return
         
         try:
@@ -1272,26 +1323,21 @@ class EldenRingTool:
             password = ""
             if config.has_section('PASSWORD'):
                 password = config.get('PASSWORD', 'cooppassword', fallback='')
-                # 去除可能的空格
                 password = password.strip()
             
-            # 只显示读取到的值，不设置默认值
             self.password_var.set(password)
             
             # 获取死亡惩罚
-            debuff_value = -1  # 默认设置为无效值，表示未读取到有效值
+            debuff_value = -1
             if config.has_section('GAMEPLAY'):
                 debuff_str = config.get('GAMEPLAY', 'death_debuffs', fallback='')
-                # 尝试转换为整数
                 try:
                     debuff_value = int(debuff_str.strip())
-                    # 只接受0或1，否则设为-1
                     if debuff_value not in [0, 1]:
                         debuff_value = -1
                 except (ValueError, AttributeError):
                     debuff_value = -1
             
-            # 设置死亡惩罚单选按钮的值
             self.debuff_var.set(debuff_value)
             
         except Exception as e:
@@ -1441,7 +1487,97 @@ class EldenRingTool:
             return False, f"删除过程中发生错误: {str(e)}"
     #endregion
 
+    #region 启动游戏相关函数
+    def refresh_launch_status(self):
+        """刷新启动游戏状态"""
+        self.check_seamless_coop_installed_status()
+        self.update_launch_button_status()
 
+    def update_launch_button_status(self):
+        """更新启动游戏按钮状态"""
+        # 只检查启动器是否存在
+        launcher_path = os.path.join(self.game_path, "ersc_launcher.exe")
+        
+        if os.path.exists(launcher_path):
+            # 同时检查SeamlessCoop文件夹（MOD必要文件）
+            coop_folder = os.path.join(self.game_path, "SeamlessCoop")
+            if os.path.exists(coop_folder):
+                self.launch_btn.config(state="normal")
+                self.launch_status_label.config(text="可启动游戏", fg="green")
+                return True
+            else:
+                self.launch_btn.config(state="disabled")
+                self.launch_status_label.config(text="缺少MOD文件夹", fg="orange")
+                return False
+        else:
+            self.launch_btn.config(state="disabled")
+            self.launch_status_label.config(text="未找到启动器", fg="red")
+            return False
+
+    def launch_game(self):
+        """启动游戏"""
+        launcher_path = os.path.join(self.game_path, "ersc_launcher.exe")
+        
+        if not os.path.exists(launcher_path):
+            messagebox.showerror("错误", f"未找到启动器:\n{launcher_path}")
+            return
+        
+        try:
+            # 检查游戏是否已经在运行
+            if self.check_game_running():
+                response = messagebox.askyesno("游戏正在运行", 
+                    "检测到游戏正在运行。\n\n"
+                    "是否启动新实例？（不建议）")
+                if not response:
+                    return
+            
+            # 禁用按钮，防止多次点击
+            self.launch_btn.config(state="disabled")
+            self.launch_status_label.config(text="正在启动...", fg="orange")
+            
+            # 启动游戏
+            import subprocess
+            subprocess.Popen([launcher_path], cwd=self.game_path)
+            
+            # 设置定时器，3秒后重新启用按钮
+            self.root.after(3000, self.enable_launch_button)
+            
+            self.status("游戏启动中...")
+            
+        except Exception as e:
+            messagebox.showerror("错误", f"启动游戏失败:\n{str(e)}")
+            self.launch_status_label.config(text="启动失败", fg="red")
+            # 3秒后恢复按钮
+            self.root.after(3000, self.enable_launch_button)
+
+    def enable_launch_button(self):
+        """启用启动游戏按钮"""
+        self.update_launch_button_status()
+
+    def check_game_running(self):
+        """检查游戏是否正在运行"""
+        try:
+            import psutil
+            for proc in psutil.process_iter(['name']):
+                if proc.info['name']:
+                    proc_name = proc.info['name'].lower()
+                    if proc_name in ['eldenring.exe', 'ersc_launcher.exe']:
+                        return True
+            return False
+        except ImportError:
+            # 如果没有psutil库，简单检查
+            try:
+                import subprocess
+                # Windows命令检查进程
+                result = subprocess.run(
+                    ['tasklist', '/FI', 'IMAGENAME eq eldenring.exe'], 
+                    capture_output=True, text=True
+                )
+                return 'eldenring.exe' in result.stdout.lower()
+            except:
+                return False
+
+    #endregion
 
 
 if __name__ == "__main__":
