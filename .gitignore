@@ -1,4 +1,6 @@
 mods/
 saves/
 test/
+dist/
+build/
 config.json

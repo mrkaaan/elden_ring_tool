@@ -86,10 +86,10 @@ class EldenRingTool:
     #region 界面构建相关函数
     def setup_ui(self):
         """设置UI界面"""
-        self.root.geometry("300x650")
+        self.root.geometry("300x550")
 
         # 路径显示区域
-        path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=10)
+        path_frame = tk.LabelFrame(self.root, text="路径信息", padx=10, pady=5)
         path_frame.pack(fill="x", padx=15, pady=2)
         
         # Steam路径
@@ -109,7 +109,7 @@ class EldenRingTool:
 
         # 工具目录链接和重新检测路径状态标签（使用grid放在同一行）
         link_frame = tk.Frame(path_frame)
-        link_frame.grid(row=3, column=0, columnspan=2, pady=(10, 0), sticky="we")
+        link_frame.grid(row=3, column=0, columnspan=2, pady=(0, 0), sticky="we")
 
         # 左边：工具目录链接（第0列，左对齐）
         self.tool_dir_link = tk.Label(link_frame, 
@@ -138,7 +138,7 @@ class EldenRingTool:
         link_frame.grid_columnconfigure(1, weight=1)   # 第1列扩展，这样就会把右侧标签推到右边
         
         # MOD管理区域
-        mod_frame = tk.LabelFrame(self.root, text="MOD管理", padx=10, pady=10)
+        mod_frame = tk.LabelFrame(self.root, text="MOD管理", padx=10, pady=5)
         mod_frame.pack(fill="x", padx=15, pady=2)
 
         # 使用网格布局，更整齐
@@ -159,11 +159,11 @@ class EldenRingTool:
 
         # 操作区域 - 放在状态信息下面
         ops_frame = tk.Frame(mod_frame)
-        ops_frame.pack(fill="x", pady=(10, 0))
+        ops_frame.pack(fill="x", pady=(0, 0))
 
         # 导入MOD按钮
         import_btn_frame = tk.Frame(ops_frame)
-        import_btn_frame.pack(fill="x", pady=(0, 10))
+        import_btn_frame.pack(fill="x", pady=(0, 0))
 
         tk.Button(import_btn_frame, text="导入MOD文件", 
                 command=self.import_mod_with_option, width=15).pack(side="left", padx=(0, 10))
@@ -199,7 +199,7 @@ class EldenRingTool:
 
         # 死亡惩罚设置行
         debuff_row = tk.Frame(config_frame)
-        debuff_row.pack(fill="x", pady=5)
+        debuff_row.pack(fill="x", pady=0)
 
         tk.Label(debuff_row, text="死亡惩罚:", width=8, anchor="w").pack(side="left")
 
@@ -227,7 +227,7 @@ class EldenRingTool:
         debuff_radio_frame.pack(side="left")
         
         # 存档管理区域
-        save_frame = tk.LabelFrame(self.root, text="存档管理", padx=10, pady=10)
+        save_frame = tk.LabelFrame(self.root, text="存档管理", padx=10, pady=5)
         save_frame.pack(fill="x", padx=15, pady=2)
 
         # 使用网格布局，更紧凑
@@ -250,7 +250,7 @@ class EldenRingTool:
 
         # 第2行：状态标签（左）和刷新按钮（右）两端对齐
         save_row2 = tk.Frame(save_inner_frame)
-        save_row2.pack(fill="x", pady=(0, 10))
+        save_row2.pack(fill="x", pady=(0, 0))
 
         # 状态标签放在左侧
         self.save_status_label = tk.Label(save_row2, 
@@ -291,14 +291,14 @@ class EldenRingTool:
                 command=self.export_current_save, width=10).pack(side="left")
 
         # 启动游戏区域 - 放在主界面最底部
-        launch_frame = tk.LabelFrame(self.root, text="启动游戏", padx=10, pady=10)
-        launch_frame.pack(fill="x", padx=15, pady=(2, 5))
+        launch_frame = tk.LabelFrame(self.root, text="启动游戏", padx=10, pady=5)
+        launch_frame.pack(fill="x", padx=15, pady=(2, 2))
 
         # 启动游戏按钮（居中）
         self.launch_btn = tk.Button(launch_frame, text="启动游戏", 
                                 command=self.launch_game, 
                                 state="disabled", width=20)
-        self.launch_btn.pack(pady=(0, 5))
+        self.launch_btn.pack(pady=(0, 2))
 
         # 刷新按钮和状态标签（在同一行，刷新靠右）
         launch_status_frame = tk.Frame(launch_frame)
