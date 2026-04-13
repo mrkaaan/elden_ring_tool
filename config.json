@@ -23,5 +23,6 @@
       "config_file": "SeamlessCoop/ersc_settings.ini"
     }
   },
-  "auto_save_enabled": true
+  "auto_save_enabled": true,
+  "auto_save": false
 }
