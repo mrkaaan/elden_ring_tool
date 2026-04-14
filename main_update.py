@@ -76,47 +76,35 @@ class EldenRingTool:
     #region 界面构建相关函数
     def setup_ui(self):
         """设置UI界面"""
-        self.root.geometry("250x340")
+        self.root.geometry("280x320")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="", padx=10, pady=5)
         path_frame.pack(fill="x", padx=10, pady=6)
         
-        # 存档路径
-        # tk.Label(path_frame, text="存档路径:").grid(row=2, column=0, sticky="w")
+        # 存档路径 - 第2行第0列（左对齐）
         self.save_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
         self.save_label.grid(row=2, column=0, sticky="w")
 
-        # 工具路径和刷新（使用grid放在同一行）
-        link_frame = tk.Frame(path_frame)
-        link_frame.grid(row=3, column=0, columnspan=2, pady=(0, 0), sticky="we")
-
-        # 左边：工具路径（第0列，左对齐）
-        self.tool_dir_link = tk.Label(link_frame, 
-                                    text="工具路径",
-                                    fg="gray", cursor="hand2")
-        self.tool_dir_link.grid(row=0, column=0, sticky="w", padx=(0, 25))
+        # 工具路径 - 第2行第1列
+        self.tool_dir_link = tk.Label(path_frame, text="工具路径", fg="gray", cursor="hand2")
+        self.tool_dir_link.grid(row=2, column=1, padx=10, sticky="w")
         self.tool_dir_link.bind("<Button-1>", lambda e: self.open_folder(os.getcwd()))
-        self.tool_dir_link.bind("<Enter>", 
-                                lambda e: self.tool_dir_link.config(fg="blue"))
-        self.tool_dir_link.bind("<Leave>", 
-                                lambda e: self.tool_dir_link.config(fg="gray"))
+        self.tool_dir_link.bind("<Enter>", lambda e: self.tool_dir_link.config(fg="blue"))
+        self.tool_dir_link.bind("<Leave>", lambda e: self.tool_dir_link.config(fg="gray"))
 
-        # 右边：刷新（第1列，右对齐）
-        self.path_status_label = tk.Label(link_frame, 
-                                        text="刷新",
-                                        fg="gray", cursor="hand2")
-        self.path_status_label.grid(row=0, column=1, sticky="e")
+        # 刷新 - 第2行第2列（右对齐）
+        self.path_status_label = tk.Label(path_frame, text="刷新", fg="gray", cursor="hand2")
+        self.path_status_label.grid(row=2, column=2, sticky="e")
         self.path_status_label.bind("<Button-1>", lambda e: self.auto_detect_paths())
-        self.path_status_label.bind("<Enter>", 
-                                    lambda e: self.path_status_label.config(fg="blue"))
-        self.path_status_label.bind("<Leave>", 
-                                    lambda e: self.path_status_label.config(fg="gray"))
+        self.path_status_label.bind("<Enter>", lambda e: self.path_status_label.config(fg="blue"))
+        self.path_status_label.bind("<Leave>", lambda e: self.path_status_label.config(fg="gray"))
 
-        # 让第1列自动扩展填充空间
-        link_frame.grid_columnconfigure(0, weight=0)   # 第0列不扩展
-        link_frame.grid_columnconfigure(1, weight=1)   # 第1列扩展，这样就会把右侧标签推到右边
-        
+        # 配置列权重
+        path_frame.grid_columnconfigure(0, weight=0)  # 左：内容宽度
+        path_frame.grid_columnconfigure(1, weight=1)  # 中：弹性填充
+        path_frame.grid_columnconfigure(2, weight=0)  # 右：内容宽度
+
         # 存档管理区域
         save_frame = tk.LabelFrame(self.root, text="", padx=10, pady=5)
         save_frame.pack(fill="x", padx=10, pady=6)
