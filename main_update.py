@@ -49,8 +49,16 @@ class EldenRingTool:
         self.root.title("艾尔登法环存档管理 v1.1")
         
         # 配置文件路径
+
+        self.auto_save_var = tk.BooleanVar(value=False)      
+        self.import_overwrite_var = tk.BooleanVar(value=True) 
+
         self.config_file = "config.json"
         self.config = self.load_config()
+
+        # 从配置中加载自动保存和直接覆盖的设置
+        self.auto_save_var.set(self.config.get("auto_save", False))
+        self.import_overwrite_var.set(self.config.get("import_overwrite", True))
         
         # 全局变量
         self.save_path = os.path.expanduser("~\\AppData\\Roaming\\EldenRing")
@@ -159,16 +167,15 @@ class EldenRingTool:
         auto_save_row = tk.Frame(save_inner_frame)
         auto_save_row.pack(fill="x", pady=(0, 5))
 
-        self.auto_save_var = tk.BooleanVar(value=False)  # 默认关闭
         auto_save_check = tk.Checkbutton(auto_save_row, text="自动保存", 
                                         variable=self.auto_save_var,
                                         command=self.toggle_auto_save)
         auto_save_check.pack(side="left")
 
         # 直接覆盖复选框
-        self.import_overwrite_var = tk.BooleanVar(value=True)
         import_overwrite_check = tk.Checkbutton(auto_save_row, text="直接覆盖",
-                                            variable=self.import_overwrite_var)
+                                            variable=self.import_overwrite_var,
+                                            command=self.toggle_overwite)
         import_overwrite_check.pack(side="left", padx=(0, 15))
 
         # 第3行：导入存档、导出存档（在同一行）
@@ -178,11 +185,11 @@ class EldenRingTool:
 
         # 导入存档按钮
         tk.Button(save_row3, text="导入存档", 
-                command=self.import_selected_save, width=10).pack(side="left", padx=(0, 5))
+                command=self.import_selected_save, width=15).pack(side="left", padx=(0, 0))
 
         # 导出存档按钮
         tk.Button(save_row3, text="导出存档", 
-                command=self.export_current_save, width=10).pack(side="left")
+                command=self.export_current_save, width=15).pack(side="right")
 
         # 启动游戏区域 - 放在主界面最底部
         launch_frame = tk.LabelFrame(self.root, text="", padx=10, pady=5)
@@ -191,7 +198,7 @@ class EldenRingTool:
         # 启动游戏按钮（居中）
         self.launch_btn = tk.Button(launch_frame, text="启动游戏", 
                                 command=self.launch_game, 
-                                state="disabled", width=20)
+                                state="disabled", width=30)
         self.launch_btn.pack(pady=(0, 2))
 
         # 刷新按钮和状态标签（在同一行，刷新靠右）
@@ -242,9 +249,18 @@ class EldenRingTool:
     
     def save_config(self):
         """保存配置文件"""
-        with open(self.config_file, 'w', encoding='utf-8') as f:
-            json.dump(self.config, f, ensure_ascii=False, indent=2)
-    
+        try:
+            if hasattr(self, 'save_path'):
+                self.config["save_path"] = self.save_path
+            self.config["auto_save"] = self.auto_save_var.get()
+            self.config["import_overwrite"] = self.import_overwrite_var.get()
+            
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            # 如果保存失败，可以在状态栏提示，或者简单地忽略
+            self.status(f"保存配置失败: {str(e)}")
+
     def ensure_save_dir(self):
         """确保存档目录存在，如果不存在则创建"""
         if not os.path.exists(self.save_path):
@@ -363,7 +379,17 @@ class EldenRingTool:
             # 可以在这里启动定时备份
         else:
             self.status("自动保存已禁用")
-            
+        self.save_config()
+
+    def toggle_overwite(self):
+        """切换直接覆盖状态"""
+        if self.import_overwrite_var.get():
+            self.status("直接覆盖已启用")
+            # 可以在这里启动定时备份
+        else:
+            self.status("直接覆盖已禁用")
+        self.save_config()
+
     def refresh_save_list(self):
         """刷新存档列表"""
         saves_dir = "saves"
