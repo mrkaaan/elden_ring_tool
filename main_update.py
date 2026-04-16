@@ -2,14 +2,8 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import os
 import shutil
-import zipfile
-import winreg
 import json
-import configparser
 from datetime import datetime
-import sys
-import threading
-import time
 
 class ToolTip:
     def __init__(self, widget, text):
@@ -192,7 +186,7 @@ class EldenRingTool:
         tk.Button(save_row3, text="导入存档", 
                 command=self.import_selected_save, width=13, font=("Microsoft YaHei", 10, "bold")).pack(side="left", padx=(0, 0))
 
-        # 导出存档按钮
+        # 导出存档按钮 
         tk.Button(save_row3, text="导出存档", 
                 command=self.export_current_save, width=13, font=("Microsoft YaHei", 10, "bold")).pack(side="right")
 

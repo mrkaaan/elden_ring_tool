@@ -65,3 +65,25 @@
 | **普通状态文本** | 10pt | Normal | 替代原有的9pt，作为标准阅读字号。 |
 | **辅助说明** (复选框文字) | 9pt | Normal | 仅用于非常次要的备注信息。 |
 
+
+## 打包
+
+好的！这是根据您提供的格式，对包含 `--add-data` 参数的完整打包命令的介绍：
+
+---
+
+### 打包命令
+```bash
+pyinstaller --onefile --windowed --name elden_save --icon icon.ico --add-data "icon.ico;." main_updata.py
+```
+
+### 命令参数详解
+*   `--onefile`: 将所有内容（您的脚本、Python 解释器、依赖库）打包成**单个 `.exe` 文件**。
+*   `--windowed` (或 `-w`): **隐藏控制台窗口**。这对于 GUI 应用至关重要，否则每次启动都会弹出一个黑色的命令行窗口。
+*   `--name elden_save`: 指定生成的可执行文件的**名称**为 `elden_save.exe`。
+*   `--icon icon.ico`: 指定要使用的**主图标文件**。这个图标会显示在 Windows 的任务栏和窗口左上角。请确保 `icon.ico` 文件和 `main_updata.py` 在同一个目录下。
+*   `--add-data "icon.ico;."`: **将额外的数据文件打包进程序**。
+    *   这里的作用是：将项目目录下的 `icon.ico` 文件，**一并复制到生成的 `.exe` 程序内部的根目录**（`.` 代表根目录）。
+    *   **为什么需要它？** 因为您代码里通过 `os.path.dirname(__file__)` 动态加载了 `icon.ico`。`--onefile` 模式下，所有文件都在临时目录解压，必须用 `--add-data` 显式告诉 PyInstaller 把这个图标文件也放进去，您的代码才能找到它。
+    *   **格式说明**: 在 Windows 上，源文件和目标路径之间用分号 `;` 分隔。
+*   `main_updata.py`: 主 Python 脚本文件。
