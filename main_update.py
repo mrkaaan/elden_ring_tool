@@ -46,7 +46,10 @@ class ToolTip:
 class EldenRingTool:
     def __init__(self, ui_type="mini"):
         self.root = tk.Tk()
-        self.root.title("艾尔登法环存档管理 v1.1")
+        self.root.title("Elden save v2.1")
+
+        icon_path = os.path.join(os.path.dirname(__file__), 'icon.ico')
+        self.root.iconbitmap(icon_path)
         
         # 配置文件路径
 
@@ -84,25 +87,25 @@ class EldenRingTool:
     #region 界面构建相关函数
     def setup_ui(self):
         """设置UI界面"""
-        self.root.geometry("280x320")
+        self.root.geometry("280x330")
 
         # 路径显示区域
         path_frame = tk.LabelFrame(self.root, text="", padx=10, pady=5)
         path_frame.pack(fill="x", padx=10, pady=6)
         
         # 存档路径 - 第2行第0列（左对齐）
-        self.save_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow")
+        self.save_label = tk.Label(path_frame, text="正在检测...", fg="gray", cursor="arrow", font=("Microsoft YaHei", 10, "bold"))
         self.save_label.grid(row=2, column=0, sticky="w")
 
         # 工具路径 - 第2行第1列
-        self.tool_dir_link = tk.Label(path_frame, text="工具路径", fg="gray", cursor="hand2")
+        self.tool_dir_link = tk.Label(path_frame, text="工具路径", fg="gray", cursor="hand2", font=("Microsoft YaHei", 10, "bold"))
         self.tool_dir_link.grid(row=2, column=1, padx=10, sticky="w")
         self.tool_dir_link.bind("<Button-1>", lambda e: self.open_folder(os.getcwd()))
         self.tool_dir_link.bind("<Enter>", lambda e: self.tool_dir_link.config(fg="blue"))
         self.tool_dir_link.bind("<Leave>", lambda e: self.tool_dir_link.config(fg="gray"))
 
         # 刷新 - 第2行第2列（右对齐）
-        self.path_status_label = tk.Label(path_frame, text="刷新", fg="gray", cursor="hand2")
+        self.path_status_label = tk.Label(path_frame, text="刷新", fg="gray", cursor="hand2", font=("Microsoft YaHei", 10, "bold"))
         self.path_status_label.grid(row=2, column=2, sticky="e")
         self.path_status_label.bind("<Button-1>", lambda e: self.auto_detect_paths())
         self.path_status_label.bind("<Enter>", lambda e: self.path_status_label.config(fg="blue"))
@@ -125,7 +128,7 @@ class EldenRingTool:
         save_row1 = tk.Frame(save_inner_frame)
         save_row1.pack(fill="x", pady=(0, 5))
 
-        tk.Label(save_row1, text="选择存档:", width=10, anchor="w").pack(side="left")
+        tk.Label(save_row1, text="选择存档:", width=10, anchor="w", font=("Microsoft YaHei", 10, "bold")).pack(side="left")
 
         # 第1行：下拉框
         save_row1_1 = tk.Frame(save_inner_frame)
@@ -135,8 +138,8 @@ class EldenRingTool:
         self.save_combo_var = tk.StringVar()
         self.save_combo = ttk.Combobox(save_row1_1, 
                                     textvariable=self.save_combo_var,
-                                    state="readonly", width=30)
-        self.save_combo.pack(side="left", padx=5)
+                                    state="readonly", width=30, font=("Microsoft YaHei", 10, "normal"))
+        self.save_combo.pack(side="left", padx=0)
         self.save_combo.bind("<<ComboboxSelected>>", lambda e: self.on_save_selected())
 
         # 第2行：状态标签（左）和刷新按钮（右）两端对齐
@@ -146,7 +149,7 @@ class EldenRingTool:
         # 状态标签放在左侧
         self.save_status_label = tk.Label(save_row2, 
                                         text="未选择存档", fg="gray", 
-                                        font=("Arial", 9))
+                                        font=("Microsoft YaHei", 10, "normal"))
         self.save_status_label.pack(side="left")
 
         # 中间的空Frame用于占据剩余空间，实现两端对齐
@@ -155,7 +158,7 @@ class EldenRingTool:
         # 刷新链接放在右侧
         self.refresh_save_link = tk.Label(save_row2, 
                                         text="刷新",
-                                        fg="gray", cursor="hand2", font=("Arial", 9))
+                                        fg="gray", cursor="hand2", font=("Microsoft YaHei", 10, "bold"))
         self.refresh_save_link.pack(side="left")
         self.refresh_save_link.bind("<Button-1>", lambda e: self.refresh_save_list())
         self.refresh_save_link.bind("<Enter>", 
@@ -169,13 +172,15 @@ class EldenRingTool:
 
         auto_save_check = tk.Checkbutton(auto_save_row, text="自动保存", 
                                         variable=self.auto_save_var,
-                                        command=self.toggle_auto_save)
+                                        command=self.toggle_auto_save,
+                                        font=("Microsoft YaHei", 9, "normal"))
         auto_save_check.pack(side="left")
 
         # 直接覆盖复选框
         import_overwrite_check = tk.Checkbutton(auto_save_row, text="直接覆盖",
                                             variable=self.import_overwrite_var,
-                                            command=self.toggle_overwite)
+                                            command=self.toggle_overwite,
+                                            font=("Microsoft YaHei", 9, "normal"))
         import_overwrite_check.pack(side="left", padx=(0, 15))
 
         # 第3行：导入存档、导出存档（在同一行）
@@ -185,11 +190,11 @@ class EldenRingTool:
 
         # 导入存档按钮
         tk.Button(save_row3, text="导入存档", 
-                command=self.import_selected_save, width=15).pack(side="left", padx=(0, 0))
+                command=self.import_selected_save, width=13, font=("Microsoft YaHei", 10, "bold")).pack(side="left", padx=(0, 0))
 
         # 导出存档按钮
         tk.Button(save_row3, text="导出存档", 
-                command=self.export_current_save, width=15).pack(side="right")
+                command=self.export_current_save, width=13, font=("Microsoft YaHei", 10, "bold")).pack(side="right")
 
         # 启动游戏区域 - 放在主界面最底部
         launch_frame = tk.LabelFrame(self.root, text="", padx=10, pady=5)
@@ -198,7 +203,8 @@ class EldenRingTool:
         # 启动游戏按钮（居中）
         self.launch_btn = tk.Button(launch_frame, text="启动游戏", 
                                 command=self.launch_game, 
-                                state="disabled", width=30)
+                                state="disabled", width=30,
+                                font=("Microsoft YaHei", 11, "bold"))
         self.launch_btn.pack(pady=(0, 2))
 
         # 刷新按钮和状态标签（在同一行，刷新靠右）
@@ -208,7 +214,8 @@ class EldenRingTool:
         # 状态标签（左）
         self.launch_status_label = tk.Label(launch_status_frame, 
                                             text="",
-                                            fg="gray", font=("Arial", 9))
+                                            fg="gray", 
+                                            font=("Microsoft YaHei", 10, "normal"))
         self.launch_status_label.pack(side="left")
 
         # 中间的空Frame用于占据剩余空间
@@ -217,7 +224,8 @@ class EldenRingTool:
         # 刷新链接（右）
         self.refresh_launch_link = tk.Label(launch_status_frame, 
                                             text="刷新",
-                                            fg="gray", cursor="hand2", font=("Microsoft YaHei", 9))
+                                            fg="gray", cursor="hand2", 
+                                            font=("Microsoft YaHei", 10, "bold"))
         self.refresh_launch_link.pack(side="right")
         self.refresh_launch_link.bind("<Button-1>", lambda e: self.refresh_launch_status())
         self.refresh_launch_link.bind("<Enter>", 
