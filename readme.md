@@ -68,10 +68,6 @@
 
 ## 打包
 
-好的！这是根据您提供的格式，对包含 `--add-data` 参数的完整打包命令的介绍：
-
----
-
 ### 打包命令
 ```bash
 pyinstaller --onefile --windowed --name elden_save --icon icon.ico --add-data "icon.ico;." main_updata.py
