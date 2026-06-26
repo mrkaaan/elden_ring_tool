@@ -4,3 +4,4 @@ test/
 dist/
 build/
 config.json
+*.spec
