@@ -372,7 +372,6 @@ class EldenRingTool:
                 return False, "无存档"
     #endregion
 
-
     #region 存档文件相关函数
     def toggle_auto_save(self):
         """切换自动保存状态"""
@@ -808,6 +807,62 @@ class EldenRingTool:
     def initial_launch_check(self):
         """初始检查启动状态"""
         self.refresh_launch_status()
+
+    def delete_save_directory(self, target_path, force=False):
+        """
+        删除存档目录中的所有内容
+        
+        Args:
+            target_path: 要清理的目标路径
+            force: 是否强制删除（即使文件被占用）
+            
+        Returns:
+            tuple: (success, message)
+        """
+        if not os.path.exists(target_path):
+            return True, "目录不存在"
+        
+        try:
+            import stat
+            
+            def handle_remove_error(func, path, exc_info):
+                """处理删除错误"""
+                print(f"删除错误: {path}, 错误: {exc_info[1]}")
+                
+                if force:
+                    # 强制删除：更改文件权限
+                    try:
+                        os.chmod(path, stat.S_IWRITE)
+                        func(path)
+                    except Exception as e:
+                        print(f"强制删除失败: {e}")
+                        raise e
+                else:
+                    raise exc_info[1]  # 不强制删除则抛出异常
+            
+            # 删除目录中的所有内容
+            for item in os.listdir(target_path):
+                item_path = os.path.join(target_path, item)
+                
+                try:
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path, onerror=handle_remove_error)
+                    else:
+                        try:
+                            os.remove(item_path)
+                        except PermissionError:
+                            if force:
+                                os.chmod(item_path, stat.S_IWRITE)
+                                os.remove(item_path)
+                            else:
+                                raise
+                except Exception as e:
+                    return False, f"删除失败 {item}: {str(e)}"
+            
+            return True, "删除成功"
+            
+        except Exception as e:
+            return False, f"删除过程中发生错误: {str(e)}"
     
     #endregion
 
@@ -847,13 +902,13 @@ class EldenRingTool:
             subprocess.Popen([bat_file], cwd=os.getcwd())
             
             # 设置定时器，3秒后重新启用按钮
-            self.root.after(3000, self.enable_launch_button)
+            self.root.after(3000, self.refresh_launch_status)
             self.status("游戏启动中...")
             
         except Exception as e:
             messagebox.showerror("错误", f"启动游戏失败:\n{str(e)}")
             self.launch_status_label.config(text="启动失败", fg="red")
-            self.root.after(3000, self.enable_launch_button)
+            self.root.after(3000, self.refresh_launch_status)
     def check_game_running(self):
         """检查游戏是否正在运行"""
         try:
